@@ -1,0 +1,25 @@
+name: tt2
+version: 0.0.1
+cabal-version: >=1.2
+build-type: Simple
+license: BSD3
+description: 
+
+library
+  ghc-options: -Wall
+  build-depends:
+    base -any,
+    parsec >= 3,
+    transformers,
+    mtl >= 2.2,
+    containers >= 0.5,
+    void
+  exposed-modules:
+    Util.MyPrelude
+    Util.Parser
+    Util.Pretty
+    Util.WLPPrint
+    Names
+    Tokenizer
+  hs-source-dirs: src
+
