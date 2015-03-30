@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns, PatternSynonyms, PatternGuards #-}
 {-# LANGUAGE DataKinds, KindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
 module SubstitutionQQ
   (Wrap,unwrap,qq)
   where

@@ -24,12 +24,10 @@ import Data.Default.Class
 data Exp
   = Var  Int
   | Free Name
-  | Pi   (Arg Exp) (Bound Exp)
-  | Si   (Arg Exp) (Bound Exp)
-  | Lam  (Arg Exp) (Bound Exp)
+  | Binder Binder (Arg Exp) (Bound Exp)
   | App  Exp (Arg Exp)
   -- sets
-  | Set  Int
+  | Set  Level
   -- pairs
   | Proj Proj Exp
   | Pair Exp Exp Exp -- (x , y) : t
@@ -44,11 +42,21 @@ data Exp
   | Blank
   deriving (Eq)
 
+-- Binders
+data Binder = PiB | SiB | LamB
+  deriving (Eq)
+
+pattern Pi  x y = Binder PiB  x y
+pattern Si  x y = Binder SiB  x y
+pattern Lam x y = Binder LamB x y
+
 type MetaVar = Int
 
 -- | Fields in a pair
 data Proj = Proj1 | Proj2
   deriving (Eq, Ord, Show, Enum)
+
+-- Universe levels
 
 -- Declarations
 data Decl
@@ -74,6 +82,36 @@ data Telescoped a
 infixl 9 `App`, `AppV`, `AppH`
 pattern AppV x y = App x (Arg Visible y)
 pattern AppH x y = App x (Arg Hidden  y)
+
+--------------------------------------------------------------------------------
+-- Universe levels
+--------------------------------------------------------------------------------
+
+-- level is of the form  max x (maximum (?yi + zi))
+-- invariant: x >= maximum zi
+data Level = Level Int (IntMap Int)
+  deriving (Eq)
+
+intLevel :: Int -> Level
+intLevel i = Level i IM.empty
+
+zeroLevel :: Level
+zeroLevel = intLevel 0
+
+pattern IntLevel i <- Level i (IM.null -> True)
+pattern ZeroLevel <- IntLevel 0
+
+metaLevel :: MetaVar -> Level
+metaLevel mv = Level 0 $ IM.singleton mv 0
+
+addLevel :: Int -> Level -> Level
+addLevel x (Level i j) = Level (x + i) (map (x +) j)
+
+sucLevel :: Level -> Level
+sucLevel = addLevel 1
+
+maxLevel :: Level -> Level -> Level
+maxLevel (Level i j) (Level i' j') = Level (max i i') (IM.unionWith max j j')
 
 --------------------------------------------------------------------------------
 -- Constructors / combinators
@@ -103,9 +141,7 @@ traverseExp l f (Var i)
   | otherwise = raiseBy l <$> travVar f (i - l)
 traverseExp l f (Free c) = raiseBy l <$> travFree f c
 traverseExp _ _ (Set i)  = pure $ Set i
-traverseExp l f (Pi  a b) = Pi  <$> traverse (traverseExp l f) a <*> traverseBExp l f b
-traverseExp l f (Si  a b) = Si  <$> traverse (traverseExp l f) a <*> traverseBExp l f b
-traverseExp l f (Lam a b) = Lam <$> traverse (traverseExp l f) a <*> traverseBExp l f b
+traverseExp l f (Binder u a b) = Binder u <$> traverse (traverseExp l f) a <*> traverseBExp l f b
 traverseExp l f (App a b) = App <$> traverseExp l f a <*> traverse (traverseExp l f) b
 traverseExp l f (Proj a b) = Proj a <$> traverseExp l f b
 traverseExp l f (Pair a b c) = Pair <$> traverseExp l f a <*> traverseExp l f b <*> traverseExp l f c
@@ -197,14 +233,14 @@ class PrettyM a where
 instance Pretty Exp where
   ppr _ (Var i) = text "#" <> ppr 0 i
   ppr p (Free c) = ppr p c
-  ppr _ (Set 0) = text "Set"
-  ppr _ (Set i) = text "Set" <> int i
+  ppr _ (Set ZeroLevel) = text "Set"
+  ppr _ (Set (IntLevel i)) = text "Set" <> int i
+  ppr _ (Set l) = text "Set" <> ppr 11 l
   ppr p (App a b) = group $ parenIf (p > 10) $ ppr 10 a $/$ ppr 11 b
-  ppr p (Pi  a b) = group $ parenIf (p > 1)  $ ppr 2 a' $/$ text "->" <+> ppr 1 b'
-    where (a',b') = namedBound a (renameForPrinting b)
-  ppr p (Si  a b) = group $ parenIf (p > 2)  $ ppr 3 a' $/$ text "*"  <+> ppr 2 b'
-    where (a',b') = namedBound a (renameForPrinting b)
-  ppr p (Lam a b) = group $ parenIf (p > 1)  $ ppr 10 a' $/$ text "=>" <+> ppr 1 b'
+  ppr p (Binder x a b) = case x of
+    PiB  -> group $ parenIf (p > 1)  $ ppr 2 a' $/$ text "->" <+> ppr 1 b'
+    SiB  -> group $ parenIf (p > 2)  $ ppr 3 a' $/$ text "*"  <+> ppr 2 b'
+    LamB -> group $ parenIf (p > 1)  $ ppr 10 a' $/$ text "=>" <+> ppr 1 b'
     where (a',b') = namedBound a (renameForPrinting b)
   ppr p (Proj x y) = group $ parenIf (p > 10) $ text "proj" <> int (fromEnum x+1) <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <> text "," $$ ppr 2 y
@@ -215,11 +251,17 @@ instance Pretty Exp where
     -- | otherwise     = text "?" <> ppr 0 i <> semiBrackets [ ppr 0 a <+> text "=" <+> ppr 0 b | (a,b) <- IM.toList args]
   ppr _ Blank = text "_"
 
+instance Pretty Level where
+  ppr _ (IntLevel i) = int i
+  ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ text "?" <> int mv <> if i == 0 then mempty else text "+" <> int i | (mv,i) <- IM.toList ls]
+
 instance Pretty Decl where
   ppr p (DeclType names typ) = group $ parenIf (p > 0) $ hsep (map (ppr 0) names) $/$ text ":" <+> ppr 0 typ
   ppr p (Rule lhs rhs)       = group $ parenIf (p > 0) $ ppr 0 lhs $/$ text "=" <+> ppr 0 rhs
 
 instance Show Exp where
+  showsPrec p = shows . ppr p
+instance Show Level where
   showsPrec p = shows . ppr p
 instance Show Decl where
   showsPrec p = shows . ppr p
@@ -234,14 +276,12 @@ type ParserEnv = (Name -> Bool)
 parseExpPrim :: Int -> Parser Exp
 parseExpPrim p
   =   tokLParen *> parseExp 0 <* tokRParen
-  <|> mkBinders Lam <$ tokLambda <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
-  <|> mkBinders Pi  <$ tokForall <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
-  <|> mkBinders Si  <$ tokExists <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
-  -- <|> mkEta Pi    Blank . mkCase <$ tokPi    <* tokLBracket <*> (parseExp `P.sepBy` tokSemi) <* tokRBracket
-  -- <|> mkEta Sigma Blank . mkCase <$ tokSigma <* tokLBracket <*> (parseExp `P.sepBy` tokSemi) <* tokRBracket
+  <|> mkBinders LamB <$ tokLambda <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
+  <|> mkBinders PiB  <$ tokForall <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
+  <|> mkBinders SiB  <$ tokExists <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
   <|> Blank <$ tokUnderscore
   <|> Free <$> parseNonOpName
-  <|> Set <$> tokType
+  <|> Set . intLevel <$> tokType
   <|> mkNat <$> tokInt
   <|> Var <$> tokVar
   <|> Meta <$> tokMeta <*> parseMetaArgs
@@ -314,15 +354,15 @@ parseBinderOp :: Hiding -> Int -> Int -> Parser (Exp -> Exp -> Parser Exp, Int, 
 parseBinderOp h pcur pmin = do
   guard $ pcur >= 2 && pmin <= 1
   tokArrow
-  return (mkOpBinder Pi h, 2,1)
+  return (mkOpBinder PiB h, 2,1)
  <|> do
   guard $ pcur >= 3 && pmin <= 2
   tokProduct
-  return (mkOpBinder Si h, 3,2)
+  return (mkOpBinder SiB h, 3,2)
  <|> do
   guard $ pcur >= 4 && pmin <= 3
   tokThickArrow
-  return (mkOpBinder Lam h, 4,3)
+  return (mkOpBinder LamB h, 4,3)
 
 parseBinders :: Parser [NamedArg Exp]
 parseBinders = concat <$> many parseBinder
@@ -342,17 +382,17 @@ parseBinder
 -- is interpreted as
 --   (a' : foo a) (b : foo a') -> c
 -- so a is captured in the type of b
-mkOpBinder :: (Arg Exp -> Bound Exp -> Exp) -> Hiding -> Exp -> Exp -> Parser Exp
+mkOpBinder :: Binder -> Hiding -> Exp -> Exp -> Parser Exp
 mkOpBinder binder h (TypeSig a b) c = do
   ns <- toNames a
-  return $ foldr (\n v -> binder (Arg h b) (capture n v)) c ns
-mkOpBinder binder h a c = return $ binder (Arg h a) (noCapture c)
+  return $ foldr (\n v -> Binder binder (Arg h b) (capture n v)) c ns
+mkOpBinder binder h a c = return $ Binder binder (Arg h a) (noCapture c)
 
-mkBinders :: (Arg Exp -> Bound Exp -> Exp) -> [NamedArg Exp] -> Exp -> Exp
+mkBinders :: Binder -> [NamedArg Exp] -> Exp -> Exp
 mkBinders binder args c = foldr bind c args
   where
   bind :: NamedArg Exp -> Exp -> Exp
-  bind (Arg h (Named n b)) v = binder (Arg h b) (capture n v)
+  bind (Arg h (Named n b)) v = Binder binder (Arg h b) (capture n v)
 
 -- interpret an expression as a list of names
 toNames :: Exp -> Parser [Name]
