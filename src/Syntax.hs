@@ -40,9 +40,11 @@ data Exp
   -- | Fw Exp Exp | Bw Exp Exp | FwBw Exp Exp | BwFw Exp Exp | Adj Exp Exp | Equiv Exp Exp Exp Exp Exp
   -- typing
   | TypeSig Exp Exp
-  | Meta Int (IntMap Exp)
+  | Meta MetaVar (Seq Exp)
   | Blank
   deriving (Eq)
+
+type MetaVar = Int
 
 -- | Fields in a pair
 data Proj = Proj1 | Proj2
@@ -111,7 +113,7 @@ traverseExp l f (TypeSig a b) = TypeSig <$> traverseExp l f a <*> traverseExp l 
 traverseExp l f (Meta    a b) = Meta a <$> traverse (traverseExp l f) b
 traverseExp _ _ Blank    = pure $ Blank
 traverseBExp :: Applicative f => Int -> ExpTraversal f -> (Bound Exp -> f (Bound Exp))
-traverseBExp l f = traverse (traverseExp (1 + l) f)
+traverseBExp l f = traverseBound (flip traverseExp f) l
 
 foldExp :: Monoid m => Int -> (Int -> m) -> (Name -> m) -> (Exp -> m)
 foldExp l0 f g = getConst . traverseExp l0 ExpTraversal
@@ -208,8 +210,9 @@ instance Pretty Exp where
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <> text "," $$ ppr 2 y
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
-    | IM.null args = text "?" <> ppr 0 i
-    | otherwise    = text "?" <> ppr 0 i <> semiBrackets [ ppr 0 a <+> text "=" <+> ppr 0 b | (a,b) <- IM.toList args]
+    | Seq.null args = text "?" <> ppr 0 i
+    | otherwise     = text "?" <> ppr 0 i <> semiBrackets (map (ppr 0) (toList args))
+    -- | otherwise     = text "?" <> ppr 0 i <> semiBrackets [ ppr 0 a <+> text "=" <+> ppr 0 b | (a,b) <- IM.toList args]
   ppr _ Blank = text "_"
 
 instance Pretty Decl where
@@ -246,6 +249,7 @@ parseExpPrim p
   <|> Proj Proj2 <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
   <?> "expression"
 
+{-
 parseMetaArgs :: Parser (IntMap Exp)
 parseMetaArgs
   =   IM.fromList <$ tokLBracket <*> (parseMetaArg `sepBy` tokSemi) <* tokRBracket
@@ -253,6 +257,11 @@ parseMetaArgs
   where
   parseMetaArg :: Parser (Int,Exp)
   parseMetaArg = (,) <$> tokInt <* tokEquals <*> parseExp 0
+-}
+parseMetaArgs :: Parser (Seq Exp)
+parseMetaArgs
+  =   Seq.fromList <$ tokLBracket <*> (parseExp 0 `sepBy` tokSemi) <* tokRBracket
+  <|> return Seq.empty 
 
 parseExp :: Int -> Parser Exp
 parseExp p = do
@@ -343,7 +352,7 @@ mkBinders :: (Arg Exp -> Bound Exp -> Exp) -> [NamedArg Exp] -> Exp -> Exp
 mkBinders binder args c = foldr bind c args
   where
   bind :: NamedArg Exp -> Exp -> Exp
-  bind (Arg h (Named n _ b)) v = binder (Arg h b) (capture n v)
+  bind (Arg h (Named n b)) v = binder (Arg h b) (capture n v)
 
 -- interpret an expression as a list of names
 toNames :: Exp -> Parser [Name]

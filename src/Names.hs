@@ -45,10 +45,14 @@ data Bound a = Bound
   --, boundFree :: Names -- names free in the body
   , boundBody :: a
   }
-  deriving (Functor, Foldable, Traversable)
+  deriving ()
 
 instance Eq a => Eq (Bound a) where
   a == b = boundBody a == boundBody b
+
+-- Note: Bound is not Traversible, to prevent mistakes wrt. keeping track of the bound values
+traverseBound :: Functor f => (Int -> a -> f b) -> Int -> Bound a -> f (Bound b)
+traverseBound f l (Bound n x) = Bound n <$> f (l+1) x
 
 --------------------------------------------------------------------------------
 -- Helper type: naming things
@@ -56,23 +60,23 @@ instance Eq a => Eq (Bound a) where
 
 data Named a = Named
   { namedName :: Name -- irrelevant for Eq
-  , namedUsed :: Bool -- is the bound name used? if not, it can be replaced by an arbitrary name
+  --, namedUsed :: Bool -- is the bound name used? if not, it can be replaced by an arbitrary name
   , namedValue :: a
   }
   deriving (Functor, Foldable, Traversable)
 
 named :: Name -> a -> Named a
-named "" = unnamed
-named n  = Named n True
+--named "" = unnamed
+named n  = Named n
 
 unnamed :: a -> Named a
-unnamed = Named "" False
+unnamed = Named ""
 
 instance Eq a => Eq (Named a) where
   a == b = namedValue a == namedValue b
 
 instance Show a => Show (Named a) where
-  showsPrec p (Named n _ ty)
+  showsPrec p (Named n ty)
     | null n = showsPrec p ty
     | otherwise = showParen (p > 0) $ showString n . showString " : " . shows ty
 
@@ -113,8 +117,8 @@ namedBound :: Arg a -> Bound b -> (NamedArg a,b)
 namedBound x y = (named (boundName y) <$> x, boundBody y)
 
 instance Pretty a => Pretty (Named a) where
-  ppr p (Named n False a) = ppr p a
-  ppr p (Named n True  a) = group $ parenIf (p > 0) $ ppr 1 n $/$ text ":" <+> ppr 0 a
+  ppr p (Named "" a) = ppr p a
+  ppr p (Named n  a) = group $ parenIf (p > 0) $ ppr 1 n $/$ text ":" <+> ppr 0 a
 
 instance Pretty a => Pretty (Bound a) where
   ppr p (Bound n a) = group $ parenIf (p > 0) $ brackets (ppr 0 n) <+> ppr 0 a

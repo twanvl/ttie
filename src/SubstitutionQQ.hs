@@ -39,7 +39,8 @@ import Language.Haskell.TH.Syntax as TH
 --   [x1]..[xn] z  = z[x1,...,xn] = z[x1=x1,...,xn=xn]
 --   [x1]..[xn] z[y1=u1,yn=un] = raiseSubst n (reverse [u1,..,un])
 
--- More sugar:
+-- More sugar (TODO):
+--   [$x] y = Bound $x [x]y
 --   (x:a) -> b  =  Pi  a [x]b
 --   (x:a) *  b  =  Si  a [x]b
 --   (x:a) => b  =  Lam a [x]b
