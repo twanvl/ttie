@@ -1,17 +1,21 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns, PatternSynonyms #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
 module Syntax where
 
 import Prelude ()
 import Util.MyPrelude
 import Util.Pretty
 import Util.Parser
+import Util.Tagged.Var
+import qualified Util.Tagged.Internal as TV
+import qualified Util.Tagged.Map as TM
 import Substitution
 import Names
 import Tokenizer
 
 import qualified Data.Map as Map
-import qualified Data.IntMap as IM
 import qualified Data.Sequence as Seq
 import Data.List (lookup,findIndex)
 import Data.Default.Class
@@ -50,7 +54,7 @@ pattern Pi  x y = Binder PiB  x y
 pattern Si  x y = Binder SiB  x y
 pattern Lam x y = Binder LamB x y
 
-type MetaVar = Int
+type MetaVar = TaggedVar "meta"
 
 -- | Fields in a pair
 data Proj = Proj1 | Proj2
@@ -89,20 +93,22 @@ pattern AppH x y = App x (Arg Hidden  y)
 
 -- level is of the form  max x (maximum (?yi + zi))
 -- invariant: x >= maximum zi
-data Level = Level Int (IntMap Int)
+data Level = Level Int (TM.TaggedMap "level-meta" Int)
   deriving (Eq)
 
+type LevelMetaVar = TaggedVar "level-meta"
+
 intLevel :: Int -> Level
-intLevel i = Level i IM.empty
+intLevel i = Level i TM.empty
 
 zeroLevel :: Level
 zeroLevel = intLevel 0
 
-pattern IntLevel i <- Level i (IM.null -> True)
+pattern IntLevel i <- Level i (TM.null -> True)
 pattern ZeroLevel <- IntLevel 0
 
-metaLevel :: MetaVar -> Level
-metaLevel mv = Level 0 $ IM.singleton mv 0
+metaLevel :: LevelMetaVar -> Level
+metaLevel mv = Level 0 $ TM.singleton mv 0
 
 addLevel :: Int -> Level -> Level
 addLevel x (Level i j) = Level (x + i) (map (x +) j)
@@ -111,7 +117,7 @@ sucLevel :: Level -> Level
 sucLevel = addLevel 1
 
 maxLevel :: Level -> Level -> Level
-maxLevel (Level i j) (Level i' j') = Level (max i i') (IM.unionWith max j j')
+maxLevel (Level i j) (Level i' j') = Level (max i i') (TM.unionWith max j j')
 
 --------------------------------------------------------------------------------
 -- Constructors / combinators
@@ -246,18 +252,23 @@ instance Pretty Exp where
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <> text "," $$ ppr 2 y
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
-    | Seq.null args = text "?" <> ppr 0 i
-    | otherwise     = text "?" <> ppr 0 i <> semiBrackets (map (ppr 0) (toList args))
+    | Seq.null args = ppr 0 i
+    | otherwise     = ppr 0 i <> semiBrackets (map (ppr 0) (toList args))
     -- | otherwise     = text "?" <> ppr 0 i <> semiBrackets [ ppr 0 a <+> text "=" <+> ppr 0 b | (a,b) <- IM.toList args]
   ppr _ Blank = text "_"
 
 instance Pretty Level where
   ppr _ (IntLevel i) = int i
-  ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ text "?" <> int mv <> if i == 0 then mempty else text "+" <> int i | (mv,i) <- IM.toList ls]
+  ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ ppr 0 mv <> if i == 0 then mempty else text "+" <> int i | (mv,i) <- TM.toList ls]
 
 instance Pretty Decl where
   ppr p (DeclType names typ) = group $ parenIf (p > 0) $ hsep (map (ppr 0) names) $/$ text ":" <+> ppr 0 typ
   ppr p (Rule lhs rhs)       = group $ parenIf (p > 0) $ ppr 0 lhs $/$ text "=" <+> ppr 0 rhs
+
+instance Pretty MetaVar where
+  ppr _ (TV.TV i) = text "?" <> ppr 0 i
+instance Pretty LevelMetaVar where
+  ppr _ (TV.TV i) = text "?" <> ppr 0 i
 
 instance Show Exp where
   showsPrec p = shows . ppr p
@@ -284,7 +295,7 @@ parseExpPrim p
   <|> Set . intLevel <$> tokType
   <|> mkNat <$> tokInt
   <|> Var <$> tokVar
-  <|> Meta <$> tokMeta <*> parseMetaArgs
+  <|> Meta . TV.TV <$> tokMeta <*> parseMetaArgs
   <|> Proj Proj1 <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
   <|> Proj Proj2 <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
   <?> "expression"
