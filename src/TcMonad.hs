@@ -66,7 +66,7 @@ modifyUsLevelMetas f us = us { usLevelMetas = f (usLevelMetas us) }
 --------------------------------------------------------------------------------
 
 newtype TcM a = TcM { unTcM :: ReaderT Ctx (ExceptT Doc (State UnificationState)) a }
-  deriving (Functor, Applicative, Monad, MonadError Doc)
+  deriving (Functor, Applicative, PseudoMonad, Monad, MonadError Doc)
 
 tcLocal :: Named Exp -> TcM a -> TcM a
 tcLocal ty = TcM . local (pushCtx ty) . unTcM

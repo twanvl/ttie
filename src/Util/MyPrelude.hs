@@ -155,6 +155,9 @@ concatMapM f xs = liftM concat (mapM f xs)
 
 infixr 2 <&&>, &&>
 
+local' :: (r -> r') -> ReaderT r' f a -> ReaderT r f a
+local' f x = ReaderT $ \r -> runReaderT x (f r)
+
 -- | Shortcutting version of @(&&)@
 (&&>) :: Monad m => Bool -> m Bool -> m Bool
 False &&> _ = return False

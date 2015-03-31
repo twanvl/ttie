@@ -2,6 +2,7 @@
 {-# LANGUAGE ViewPatterns, PatternSynonyms #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Syntax where
 
@@ -132,6 +133,18 @@ mkNat n = Free "suc" `AppV` mkNat (n-1)
 -- Traversing expressions
 --------------------------------------------------------------------------------
 
+instance TraverseChildren Exp Exp where
+  traverseChildren _ (Var i)  = pure $ Var i
+  traverseChildren _ (Free c) = pure $ Free c
+  traverseChildren _ (Set i)  = pure $ Set i
+  traverseChildren f (Binder u (Arg h x) y) = traverseBinder (Binder u . Arg h) f f x y
+  traverseChildren f (App x y) = App <$> f x <*> traverse f y
+  traverseChildren f (Proj x y) = Proj x <$> f y
+  traverseChildren f (Pair x y z) = Pair <$> f x <*> f y <*> f z
+  traverseChildren f (TypeSig x y) = TypeSig <$> f x <*> f y
+  traverseChildren f (Meta    x y) = Meta x <$> traverse f y
+  traverseChildren _ Blank    = pure $ Blank
+
 data ExpTraversal f = ExpTraversal
   { travVar  :: Int  -> f Exp
   , travFree :: Name -> f Exp
@@ -142,21 +155,12 @@ defExpTraversal = ExpTraversal
   , travFree = \c -> pure $ Free c
   }
 
-traverseExp :: Applicative f => Int -> ExpTraversal f -> (Exp -> f Exp)
+traverseExp :: PseudoMonad f => Int -> ExpTraversal f -> (Exp -> f Exp)
 traverseExp l f (Var i)
   | i < l     = pure $ Var i
   | otherwise = raiseBy l <$> travVar f (i - l)
 traverseExp l f (Free c) = raiseBy l <$> travFree f c
-traverseExp _ _ (Set i)  = pure $ Set i
-traverseExp l f (Binder u a b) = Binder u <$> traverse (traverseExp l f) a <*> traverseBExp l f b
-traverseExp l f (App a b) = App <$> traverseExp l f a <*> traverse (traverseExp l f) b
-traverseExp l f (Proj a b) = Proj a <$> traverseExp l f b
-traverseExp l f (Pair a b c) = Pair <$> traverseExp l f a <*> traverseExp l f b <*> traverseExp l f c
-traverseExp l f (TypeSig a b) = TypeSig <$> traverseExp l f a <*> traverseExp l f b
-traverseExp l f (Meta    a b) = Meta a <$> traverse (traverseExp l f) b
-traverseExp _ _ Blank    = pure $ Blank
-traverseBExp :: Applicative f => Int -> ExpTraversal f -> (Bound Exp -> f (Bound Exp))
-traverseBExp l f = traverseBound (flip traverseExp f) l
+traverseExp l f x = runDepthT l $ traverseChildren (\x' -> withDepth $ \l' -> traverseExp l' f x') x
 
 foldExp :: Monoid m => Int -> (Int -> m) -> (Name -> m) -> (Exp -> m)
 foldExp l0 f g = getConst . traverseExp l0 ExpTraversal
@@ -167,7 +171,6 @@ instance Subst Exp where
   var = Var
   unVar (Var i) = Just i
   unVar _ = Nothing
-  mapExpM f = traverseExp 0 defExpTraversal{ travVar = f }
 
 --------------------------------------------------------------------------------
 -- Renaming for printing and parsing

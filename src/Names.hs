@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
 module Names where
 
 import Prelude ()
@@ -45,17 +46,20 @@ data Bound a = Bound
   --, boundFree :: Names -- names free in the body
   , boundBody :: a
   }
-  deriving ()
+  deriving (Show)
+-- Note: Bound is not Traversible, to prevent mistakes wrt. keeping track of the bound values
+-- see TraverseBound class below
 
 instance Eq a => Eq (Bound a) where
   a == b = boundBody a == boundBody b
 
--- Note: Bound is not Traversible, to prevent mistakes wrt. keeping track of the bound values
+{-
 traverseBound :: Functor f => (Int -> a -> f b) -> Int -> Bound a -> f (Bound b)
 traverseBound f l (Bound n x) = Bound n <$> f (l+1) x
+-}
 
 --------------------------------------------------------------------------------
--- Helper type: naming things
+-- Helper type: named things
 --------------------------------------------------------------------------------
 
 data Named a = Named
@@ -106,8 +110,75 @@ namedArgValue :: NamedArg a -> a--
 namedArgValue = namedValue . argValue
 
 --------------------------------------------------------------------------------
--- Renaming for printing
+-- Monads that can handle bound names
 --------------------------------------------------------------------------------
+
+-- An applied function
+data Applied a b = (a -> b) :$ a
+
+-- A monad that can be faked by using the input of an endo-function
+-- this allows us to make Const an instance of MonadBound, by using the original value
+class Applicative f => PseudoMonad f where
+  (?>>=) :: Applied a (f a) -> (a -> f b) -> f b
+  default (?>>=) :: Monad f => Applied a (f a) -> (a -> f b) -> f b
+  (?>>=) (f :$ x) = (>>=) (f x)
+
+-- | Applicatives or monads that keep track of 
+class PseudoMonad f => MonadBound exp f where
+  localBound :: Named exp -> f a -> f a
+
+  traverseBound :: exp -> (a -> f b) -> Bound a -> f (Bound b)
+  traverseBound ty f (Bound n x) = Bound n <$> localBound (named n ty) (f x)
+
+  traverseBinder :: (exp -> Bound b -> c) -> (exp -> f exp) -> (a -> f b) -> exp -> Bound a -> f c
+  traverseBinder f g h x y = (g :$ x) ?>>= \x' -> f x' <$> traverseBound x' h y
+
+class Functor f => MonadBoundNames f where
+  boundNames :: f (Seq Name)
+  boundNamesSet :: f (Set Name)
+  boundNamesSet = Set.fromList . toList <$> boundNames
+
+class (MonadBoundNames f, MonadBound exp f) => MonadBoundTypes exp f where
+  boundTypes :: f (Seq (Named exp))
+
+--------------------------------------------------------------------------------
+-- Some instances of MonadBound
+--------------------------------------------------------------------------------
+
+instance PseudoMonad Identity
+instance PseudoMonad Maybe
+instance PseudoMonad m => PseudoMonad (ReaderT r m) where
+  (f :$ x) ?>>= y = ReaderT $ \r -> ((flip runReaderT r . f) :$ x) ?>>= (flip runReaderT r . y)
+instance (Functor m, Monad m) => PseudoMonad (ExceptT e m) where
+
+instance Monoid a => PseudoMonad (Const a) where
+  (f :$ x) ?>>= g = f x *> g x
+instance Monoid a => MonadBound exp (Const a) where
+  localBound _ = id
+
+newtype DepthT f a = DepthT { unDepthT :: ReaderT Int f a }
+  deriving (Functor,Applicative,Monad,PseudoMonad)
+instance PseudoMonad f => MonadBound exp (DepthT f) where
+  localBound _ = DepthT . local' succ . unDepthT
+withDepth :: (Int -> f a) -> DepthT f a
+withDepth = DepthT . ReaderT
+runDepthT :: Int -> DepthT f a -> f a
+runDepthT d0 = flip runReaderT d0 . unDepthT
+
+newtype NamesT f a = NamesT { unNamesT :: ReaderT (Seq Name) f a }
+  deriving (Functor,Applicative,Monad,PseudoMonad)
+instance PseudoMonad f => MonadBound exp (NamesT f) where
+  localBound x = NamesT . local' (namedName x <|) . unNamesT
+
+--------------------------------------------------------------------------------
+-- Traversing children of expressions
+--------------------------------------------------------------------------------
+
+class TraverseChildren exp a where
+  traverseChildren :: MonadBound exp f => (exp -> f exp) -> (a -> f a)
+
+instance TraverseChildren exp a => TraverseChildren exp (Arg a) where
+  traverseChildren f x = traverse (traverseChildren f) x
 
 --------------------------------------------------------------------------------
 -- Pretty Printing

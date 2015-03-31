@@ -1,26 +1,35 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns, PatternSynonyms #-}
+{-# LANGUAGE DefaultSignatures, ConstraintKinds #-}
 module Substitution where
 
 import Prelude ()
 import Util.MyPrelude
 import Util.Pretty
 import Util.Parser
+import Names
 
---import qualified Data.Map as Map
 import qualified Data.IntMap as IM
 import qualified Data.Sequence as Seq
---import Data.List (lookup,findIndex)
---import Data.Default.Class
 
 --------------------------------------------------------------------------------
 -- Substitution and friends
 --------------------------------------------------------------------------------
 
-class Subst a where
+class TraverseChildren a a => Subst a where
   var :: Int -> a
   unVar :: a -> Maybe Int
-  mapExpM :: Applicative f => (Int -> f a) -> (a -> f a)
+
+  -- traverse all variables
+  mapExpM :: PseudoMonad f => (Int -> f a) -> (a -> f a)
+  mapExpM f = runDepthT 0 . go
+    where
+    go x = case unVar x of
+      Just i  -> withDepth $ \l ->
+                   if i < l
+                   then pure (var i)
+                   else raiseBy l <$> f (i-l)
+      Nothing -> traverseChildren go x
 
 mapExp :: Subst a => (Int -> a) -> (a -> a)
 mapExp f = runIdentity . mapExpM (pure . f)
