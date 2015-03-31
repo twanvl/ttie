@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module TcMonad where
 
 import Prelude ()
@@ -66,16 +67,18 @@ modifyUsLevelMetas f us = us { usLevelMetas = f (usLevelMetas us) }
 --------------------------------------------------------------------------------
 
 newtype TcM a = TcM { unTcM :: ReaderT Ctx (ExceptT Doc (State UnificationState)) a }
-  deriving (Functor, Applicative, PseudoMonad, Monad, MonadError Doc)
+  deriving (Functor, Applicative, Monad, MonadError Doc)
 
-tcLocal :: Named Exp -> TcM a -> TcM a
-tcLocal ty = TcM . local (pushCtx ty) . unTcM
-
-tcTraverse :: Exp -> (a -> TcM b) -> Bound a -> TcM (Bound b)
-tcTraverse ty f (Bound n x) = Bound n <$> tcLocal (named n ty) (f x)
+instance MonadBound Exp TcM where
+  localBound ty = TcM . local (pushCtx ty) . unTcM
 
 runTcM :: TcM a -> Either Doc a
-runTcM = error "TODO"
+runTcM = flip evalState emptyUS . runExceptT . flip runReaderT emptyCtx . unTcM
+
+testTcM :: TcM a -> a
+testTcM x = case runTcM x of
+  Left e -> error (show e)
+  Right y -> y
 
 --------------------------------------------------------------------------------
 -- Getting/setting/adding MetaVars and LevelMetaVars

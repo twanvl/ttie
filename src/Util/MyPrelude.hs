@@ -52,7 +52,7 @@ module Util.MyPrelude
   , Identity(..)
   --, Constant(..) -- use Control.Applicative.Const
   , Compose(..)
-  , MonadError(..), ExceptT(..), Except, throw
+  , MonadError(..), ExceptT(..), runExceptT, Except, throw
   , ReaderT(..), MonadReader(..), Reader, runReader, asks
   , StateT(..), MonadState(..), State, evalState, execState, runState, evalStateT, execStateT, gets, modify
   , WriterT(..), MonadWriter(..), Writer, runWriter, execWriter, execWriterT

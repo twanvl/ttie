@@ -21,7 +21,7 @@ class TraverseChildren a a => Subst a where
   unVar :: a -> Maybe Int
 
   -- traverse all variables
-  mapExpM :: PseudoMonad f => (Int -> f a) -> (a -> f a)
+  mapExpM :: Applicative f => (Int -> f a) -> (a -> f a)
   mapExpM f = runDepthT 0 . go
     where
     go x = case unVar x of

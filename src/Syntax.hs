@@ -155,7 +155,7 @@ defExpTraversal = ExpTraversal
   , travFree = \c -> pure $ Free c
   }
 
-traverseExp :: PseudoMonad f => Int -> ExpTraversal f -> (Exp -> f Exp)
+traverseExp :: Applicative f => Int -> ExpTraversal f -> (Exp -> f Exp)
 traverseExp l f (Var i)
   | i < l     = pure $ Var i
   | otherwise = raiseBy l <$> travVar f (i - l)
@@ -359,6 +359,10 @@ parseOp pcur pmin = (try $ do
   guard $ pcur >= 1 && pmin <= 0
   tokColon
   return ((\x y -> pure (TypeSig x y)), 1,0)
+ <|> do
+  guard $ pcur >= 3 && pmin <= 2
+  tokComma
+  return ((\x y -> pure (Pair x y Blank)), 3,2)
  <|>
   parseBinderOp Visible pcur pmin
  <|> do
