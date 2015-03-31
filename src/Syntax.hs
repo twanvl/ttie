@@ -2,6 +2,7 @@
 {-# LANGUAGE ViewPatterns, PatternSynonyms #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Syntax where
 
 import Prelude ()
