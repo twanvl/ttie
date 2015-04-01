@@ -59,6 +59,7 @@ evalProj _ p x = pure $ Proj p x
 -- Expand metas in expressions
 --------------------------------------------------------------------------------
 
+-- Evaluate metas at the top
 evalMetas :: Exp -> TcM Exp
 evalMetas x@(Meta mv args) = do
   x' <- metaValue mv args
@@ -66,6 +67,17 @@ evalMetas x@(Meta mv args) = do
     Nothing  -> pure x
     Just x'' -> evalMetas x''
 evalMetas x = pure x
+
+-- Evaluate all metas, give an error for unresolved ones
+evalAllMetas :: Exp -> TcM Exp
+evalAllMetas (Meta mv args) = do
+  x' <- metaValue mv args
+  case x' of
+    Nothing  -> --throwError =<< text "Unresolved meta" --
+                Meta mv <$> traverse evalAllMetas args
+    Just x'' -> evalAllMetas x''
+evalAllMetas (Set i) = Set <$> evalLevel i
+evalAllMetas x = traverseChildren evalAllMetas x
 
 --------------------------------------------------------------------------------
 -- Expand metas in levels

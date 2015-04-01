@@ -225,9 +225,6 @@ capture n = Bound n . runIdentity . traverseExp 0 ExpTraversal
   , travFree = \n' -> Identity $ if n == n' then Var 0 else Free n'
   }
 
-noCapture :: Exp -> Bound Exp
-noCapture = Bound "" . raiseBy 1
-
 {-
 captureMany :: [Name] -> Exp -> Exp
 captureMany ns = runIdentity . traverseExp 0 ExpTraversal
@@ -422,7 +419,7 @@ mkOpBinder :: Binder -> Hiding -> Exp -> Exp -> Parser Exp
 mkOpBinder binder h (TypeSig a b) c = do
   ns <- toNames a
   return $ foldr (\n v -> Binder binder (Arg h b) (capture n v)) c ns
-mkOpBinder binder h a c = return $ Binder binder (Arg h a) (noCapture c)
+mkOpBinder binder h a c = return $ Binder binder (Arg h a) (notBound c)
 
 mkBinders :: Binder -> [NamedArg Exp] -> Exp -> Exp
 mkBinders binder args c = foldr bind c args

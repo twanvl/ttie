@@ -82,3 +82,7 @@ unsubstN xs = mapExpM $ \i -> IM.lookup i vars
 varUsed :: Subst a => Int -> a -> Bool
 varUsed v = getAny . getConst . mapExpM (\i -> Const . Any $ i == v)
 
+-- A 'Bound' where the bound name is not used
+notBound :: Subst a => a -> Bound a
+notBound = Bound "" . raiseBy 1
+

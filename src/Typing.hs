@@ -44,25 +44,32 @@ occursCheck mv x = traverseChildren_ (occursCheck mv) x
 -- | Set a unification variable
 -- Doesn't verify types
 unifyMeta, unifyMeta' :: Swapped -> MetaVar -> Seq Exp -> Exp -> TcM Exp
-unifyMeta swapped mv args y = unifyMeta' swapped mv args =<< evalMetas y
-unifyMeta' _ mv args (Meta mv' args') | mv' == mv =
-  Meta mv <$> sequenceA (Seq.zipWith unify args args')
-unifyMeta' swapped mv args y = do
+unifyMeta swapped mv args y = do
   mx <- metaValue mv args
   case mx of
-    Just x -> swapped unify x y -- x already has a value, unify with that
-    Nothing -> case unsubstN args y of
-        Nothing -> throwError =<< text "Variables not in scope of meta"
-        Just y' -> do
-          -- perform occurs check: y' must not contain mv
-          occursCheck mv y
-          modifyMetaVar mv $ \val -> val { mvValue = Just y' }
-          return y
+    Just x  -> swapped unify x y -- x already has a value, unify with that
+    Nothing -> unifyMeta' swapped mv args =<< evalMetas y
+unifyMeta' _ mv args (Meta mv' args') | mv' == mv =
+  Meta mv <$> sequenceA (Seq.zipWith unify args args')
+unifyMeta' swapped mv args (Meta mv' args') | Seq.length args < Seq.length args' =
+  -- unify the other way around, otherwise unsubstN will fail
+  unifyMeta' (flip . swapped) mv' args' (Meta mv args)
+unifyMeta' swapped mv args y = case unsubstN args y of
+  Nothing -> throwError =<< text "Variables not in scope of meta"
+                         $$ ppr 0 (Meta mv args)
+                         $$ ppr 0 y
+  Just y' -> do
+    -- perform occurs check: y' must not contain mv
+    occursCheck mv y
+    modifyMetaVar mv $ \val -> val { mvValue = Just y' }
+    return y
 
 --unifyLevelMeta :: LevelMetaVar -> Seq Exp -> Exp -> TcM Exp
 
 unifyLevels :: Level -> Level -> TcM Level
-unifyLevels ls = undefined
+unifyLevels x y | x == y = pure x
+unifyLevels x y = do
+  throwError =<< text "Failed to unify" <+> ppr 11 (Set x) <+> text "with" <+> ppr 11 (Set y)
 
 -- | Unify two expressions.
 -- requires that the expressions have the same type
@@ -86,11 +93,22 @@ unify' :: Exp -> Exp -> TcM Exp
 unify' (Set i) (Set i') = Set <$> unifyLevels i i'
 unify' (Proj p x) (Proj p' x') | p == p' = Proj p <$> unify' x x'
 unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*> (Arg h <$> unify' y y')
+unify' (Binder b (Arg h x) y) (Binder b' (Arg h' x') y') | b == b' && h == h' = do
+  x'' <- unify x x'
+  Binder b (Arg h x'') <$> unifyBound x'' y y'
 unify' (Meta x args) y = unifyMeta id   x args y
 unify' y (Meta x args) = unifyMeta flip x args y
 unify' x y | x == y = return x
 unify' x y = do
   throwError =<< text "Failed to unify" <+> ppr 11 x <+> text "with" <+> ppr 11 y
+
+unifyName :: Name -> Name -> Name
+unifyName "" n = n
+unifyName n _  = n
+
+unifyBound :: Exp -> Bound Exp -> Bound Exp -> TcM (Bound Exp)
+unifyBound ty (Bound n x) (Bound n' x') = Bound n'' <$> localBound (Named n'' ty) (unify x x')
+  where n'' = unifyName n n'
 
 --unify' (Just valX) x (Pi (Arg Hidden u) v) =
 
@@ -175,11 +193,25 @@ tc Nothing (TypeSig x y) = do
 tc Nothing (Lam (Arg h x) (Bound n y)) = do
   (x',_) <- tcType x
   (y',t) <- localBound (named n x') (tc Nothing y)
-  return (Lam (Arg h x') (Bound n y'), Pi (Arg h x') (Bound n y))
+  return (Lam (Arg h x') (Bound n y'), Pi (Arg h x') (Bound n t))
 tc Nothing (Binder b (Arg h x) (Bound n y)) = do -- Pi or Sigma
   (x',lx) <- tcType x
   (y',ly) <- localBound (named n x') (tcType y)
   return (Binder b (Arg h x') (Bound n y'), Set (maxLevel lx ly))
+tc Nothing (Pair (Arg h x) y Blank) = do
+  -- assume non-dependent pair
+  (x',tx) <- tc Nothing x
+  (y',ty) <- tc Nothing y
+  let txy = Si (Arg h tx) (notBound ty)
+  return (Pair (Arg h x') y' txy, txy)
+tc Nothing (Meta x args) = do
+  val <- metaValue x args
+  case val of
+    Just x' -> tc Nothing x' -- eagerly get rid of known metas
+    Nothing -> do
+      ty <- metaType x args
+      -- TODO: should I typecheck the args?
+      return (Meta x args, ty)
 
 tc (Just ty) x = do
   (x',ty') <- tc Nothing x
