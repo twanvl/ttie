@@ -7,6 +7,7 @@ module Eval where
 import Prelude ()
 import Util.MyPrelude
 import Util.Pretty
+import qualified Util.Tagged.Map as TM
 import Syntax
 import Substitution
 import Names
@@ -49,10 +50,25 @@ evalApp :: EvalStrategy -> Exp -> Arg Exp -> TcM Exp
 evalApp s (Lam _ x) y = evalMore s $ substBound x (argValue y)
 evalApp _ x y = pure $ App x y
 
-evalProj :: EvalStrategy -> Proj -> Exp -> TcM Exp
-evalProj s Proj1 (Pair x _y _) = evalMore s x
-evalProj s Proj2 (Pair _x y _) = evalMore s y
+evalProj :: EvalStrategy -> Arg Proj -> Exp -> TcM Exp
+evalProj s (Arg _ Proj1) (Pair x _y _) = evalMore s (argValue x)
+evalProj s (Arg _ Proj2) (Pair _x y _) = evalMore s y
 evalProj _ p x = pure $ Proj p x
+
+--------------------------------------------------------------------------------
+-- Expand metas in levels
+--------------------------------------------------------------------------------
+
+evalLevel :: Level -> TcM Level
+evalLevel x@(IntLevel _) = pure x
+evalLevel (Level i j) = foldr maxLevel (intLevel i) <$> mapM evalLevelVar (TM.toList j)
+
+evalLevelVar :: (LevelMetaVar, Int) -> TcM Level
+evalLevelVar (mv,add) = do
+  l <- getLevelMetaVar mv
+  case l of
+    Nothing -> return $ addLevel add (metaLevel mv)
+    Just l' -> addLevel add <$> evalLevel l'
 
 --------------------------------------------------------------------------------
 -- Evaluation in all possible locations

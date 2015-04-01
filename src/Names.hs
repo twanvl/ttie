@@ -130,7 +130,7 @@ class (Applicative f, Monad f) => MonadBoundNames f where
   boundNamesSet :: f (Set Name)
   boundNamesSet = Set.fromList . toList <$> boundNames
 
-class (MonadBoundNames f, MonadBound exp f) => MonadBoundTypes exp f where
+class (MonadBoundNames f, MonadBound exp f) => MonadBoundTypes exp f | f -> exp where
   boundTypes :: f (Seq (Named exp))
 
 --------------------------------------------------------------------------------

@@ -36,8 +36,8 @@ data Exp
   -- sets
   | Set  Level
   -- pairs
-  | Proj Proj Exp
-  | Pair Exp Exp Exp -- (x , y) : t
+  | Proj (Arg Proj) Exp
+  | Pair (Arg Exp) Exp Exp -- (x , y) : t
   -- equality
   -- | Eq   (Bound Exp) Exp Exp
   -- | Refl (Bound Exp)
@@ -141,7 +141,7 @@ instance TraverseChildren Exp Exp where
   traverseChildren f (Binder u (Arg h x) y) = traverseBinder (Binder u . Arg h) f f x y
   traverseChildren f (App x y) = App <$> f x <*> traverse f y
   traverseChildren f (Proj x y) = Proj x <$> f y
-  traverseChildren f (Pair x y z) = Pair <$> f x <*> f y <*> f z
+  traverseChildren f (Pair x y z) = Pair <$> traverse f x <*> f y <*> f z
   traverseChildren f (TypeSig x y) = TypeSig <$> f x <*> f y
   traverseChildren f (Meta    x y) = Meta x <$> traverse f y
   traverseChildren _ Blank    = pure $ Blank
@@ -261,13 +261,17 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
     SiB  -> group $ parenIf (p > 2)  $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
     LamB -> group $ parenIf (p > 1)  $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')
     where (a',b') = namedBound a (renameForPrinting b)
-  ppr p (Proj x y) = group $ parenIf (p > 10) $ text "proj" <.> int (fromEnum x+1) <+> ppr 11 y
+  ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
     | Seq.null args = ppr 0 i
     | otherwise     = ppr 0 i <.> semiBrackets (map (ppr 0) (toList args))
   ppr _ Blank = text "_"
+
+instance Applicative m => Pretty m Proj where
+  ppr _ Proj1 = text "proj1"
+  ppr _ Proj2 = text "proj2"
 
 instance Applicative m => Pretty m Level where
   ppr _ (IntLevel i) = int i
@@ -311,8 +315,10 @@ parseExpPrim p
   <|> mkNat <$> tokInt
   <|> Var <$> tokVar
   <|> Meta . TV.TV <$> tokMeta <*> parseMetaArgs
-  <|> Proj Proj1 <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
-  <|> Proj Proj2 <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
+  <|> Proj (visible Proj1) <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
+  <|> Proj (visible Proj2) <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
+  <|> Proj (hidden  Proj1) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj1" <* tokRBrace) <*> parseExp 11
+  <|> Proj (hidden  Proj2) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj2" <* tokRBrace) <*> parseExp 11
   <?> "expression"
 
 {-
@@ -370,10 +376,6 @@ parseOp pcur pmin = (try $ do
   guard $ pcur >= 1 && pmin <= 0
   tokColon
   return ((\x y -> pure (TypeSig x y)), 1,0)
- <|> do
-  guard $ pcur >= 3 && pmin <= 2
-  tokComma
-  return ((\x y -> pure (Pair x y Blank)), 3,2)
  <|>
   parseBinderOp Visible pcur pmin
  <|> do
@@ -393,6 +395,10 @@ parseBinderOp h pcur pmin = do
   guard $ pcur >= 4 && pmin <= 3
   tokThickArrow
   return (mkOpBinder LamB h, 4,3)
+ <|> do
+  guard $ pcur >= 3 && pmin <= 2
+  tokComma
+  return ((\x y -> pure (Pair (Arg h x) y Blank)), 3,2)
 
 parseBinders :: Parser [NamedArg Exp]
 parseBinders = concat <$> many parseBinder

@@ -1,11 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 module TcMonad where
 
 import Prelude ()
 import Util.MyPrelude
-import Util.Pretty
+import Util.PrettyM
 import qualified Util.Tagged.Seq as TS
 import Names
 import Substitution
@@ -72,6 +73,12 @@ newtype TcM a = TcM { unTcM :: ReaderT Ctx (ExceptT Doc (State UnificationState)
 instance MonadBound Exp TcM where
   localBound ty = TcM . local (pushCtx ty) . unTcM
 
+instance MonadBoundNames TcM where
+  boundNames = map namedName <$> boundTypes
+
+instance MonadBoundTypes Exp TcM where
+  boundTypes = TcM $ asks ctxVarType
+
 runTcM :: TcM a -> Either Doc a
 runTcM = flip evalState emptyUS . runExceptT . flip runReaderT emptyCtx . unTcM
 
@@ -81,8 +88,28 @@ testTcM x = case runTcM x of
   Right y -> y
 
 --------------------------------------------------------------------------------
+-- Variables
+--------------------------------------------------------------------------------
+
+-- Name and type of bound variable
+boundType :: Int -> TcM (Named Exp)
+boundType i = do
+  tys <- boundTypes
+  if 0 <= i && i < Seq.length tys
+    then return $ Seq.index tys i
+    else throwError =<< text "Variable not bound:" <+> int i
+
+freeType :: Name -> TcM Exp
+freeType n = throwError =<< text "Free variable has no type:" <+> text n
+
+--------------------------------------------------------------------------------
 -- Error utilities
 --------------------------------------------------------------------------------
+
+annError :: (Applicative m, MonadError Doc m) => m a -> m Doc -> m a
+annError x y = catchError x $ \err -> do
+  ann <- catchError y (const $ throwError err)
+  throwError =<< pure err $$ pure ann
 
 --------------------------------------------------------------------------------
 -- Getting/setting/adding MetaVars and LevelMetaVars
@@ -107,9 +134,14 @@ freshMeta ty = do
   let args = Seq.fromList $ map Var [0..numBound-1]
   return (Meta mv args)
 
-freshMetaSet :: TcM Exp
-freshMetaSet = Set . metaLevel <$> freshLevelMetaVar
+freshMetaLevel :: TcM Level
+freshMetaLevel = metaLevel <$> freshLevelMetaVar
 
+-- a fresh meta x : Set _
+freshMetaSet :: TcM Exp
+freshMetaSet = freshMeta . Set =<< freshMetaLevel
+
+-- a fresh meta x : _ : Set _
 freshMetaAny :: TcM Exp
 freshMetaAny = freshMeta =<< freshMetaSet
 
