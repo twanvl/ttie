@@ -145,6 +145,8 @@ instance MonadBound exp Maybe where
   localBound _ = id
 instance MonadBound exp [] where
   localBound _ = id
+instance (MonadBound exp f, Applicative g) => MonadBound exp (Compose f g) where
+  localBound x (Compose y) = Compose (localBound x y)
 
 newtype DepthT f a = DepthT { unDepthT :: ReaderT Int f a }
   deriving (Functor,Applicative,Monad)
