@@ -310,10 +310,10 @@ parseExpPrim p
   <|> mkBinders PiB  <$ tokForall <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
   <|> mkBinders SiB  <$ tokExists <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
   <|> Blank <$ tokUnderscore
-  <|> Free <$> parseNonOpName
   <|> Set . intLevel <$> tokType
   <|> mkNat <$> tokInt
   <|> Var <$> tokVar
+  <|> Free <$> parseNonOpName
   <|> Meta . TV.TV <$> tokMeta <*> parseMetaArgs
   <|> Proj (visible Proj1) <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
   <|> Proj (visible Proj2) <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11

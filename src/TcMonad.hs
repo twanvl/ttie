@@ -148,20 +148,20 @@ freshMetaAny = freshMeta =<< freshMetaSet
 getMetaVar :: MetaVar -> TcM MetaValue
 getMetaVar mv = TcM $ gets $ TS.get mv . usMetas
 
-modifyMetaVar :: (MetaValue -> MetaValue) -> MetaVar -> TcM ()
-modifyMetaVar f mv = TcM $ modify $ modifyUsMetas $ TS.modify f mv
+modifyMetaVar :: MetaVar -> (MetaValue -> MetaValue) -> TcM ()
+modifyMetaVar mv f = TcM $ modify $ modifyUsMetas $ TS.modify f mv
 
 putMetaVar :: MetaVar -> MetaValue -> TcM ()
-putMetaVar mv x = modifyMetaVar (const x) mv
+putMetaVar mv x = modifyMetaVar mv (const x)
 
 getLevelMetaVar :: LevelMetaVar -> TcM (Maybe Level)
 getLevelMetaVar mv = TcM $ gets $ TS.get mv . usLevelMetas
 
-modifyLevelMetaVar :: (Maybe Level -> Maybe Level) -> LevelMetaVar -> TcM ()
-modifyLevelMetaVar f mv = TcM $ modify $ modifyUsLevelMetas $ TS.modify f mv
+modifyLevelMetaVar :: LevelMetaVar -> (Maybe Level -> Maybe Level) -> TcM ()
+modifyLevelMetaVar mv f = TcM $ modify $ modifyUsLevelMetas $ TS.modify f mv
 
 putLevelMetaVar :: LevelMetaVar -> Maybe Level -> TcM ()
-putLevelMetaVar mv x = modifyLevelMetaVar (const x) mv
+putLevelMetaVar mv x = modifyLevelMetaVar mv (const x)
 
 --------------------------------------------------------------------------------
 -- Expanding metas

@@ -56,6 +56,18 @@ evalProj s (Arg _ Proj2) (Pair _x y _) = evalMore s y
 evalProj _ p x = pure $ Proj p x
 
 --------------------------------------------------------------------------------
+-- Expand metas in expressions
+--------------------------------------------------------------------------------
+
+evalMetas :: Exp -> TcM Exp
+evalMetas x@(Meta mv args) = do
+  x' <- metaValue mv args
+  case x' of
+    Nothing  -> pure x
+    Just x'' -> evalMetas x''
+evalMetas x = pure x
+
+--------------------------------------------------------------------------------
 -- Expand metas in levels
 --------------------------------------------------------------------------------
 

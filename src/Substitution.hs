@@ -61,6 +61,7 @@ substsN xs = mapExp $ \i -> if i < Seq.length xs
   then Seq.index xs i
   else var (i - Seq.length xs)
 
+{-
 lowerBy :: Subst a => Int -> a -> Maybe a
 lowerBy 0 = pure
 lowerBy n = mapExpM $ \i -> if i < n then Nothing else Just $ var (i - n)
@@ -68,6 +69,12 @@ lowerBy n = mapExpM $ \i -> if i < n then Nothing else Just $ var (i - n)
 lowerByN :: Subst a => Int -> Seq a -> a -> Maybe a
 lowerByN 0 _ = pure
 lowerByN n xs = mapExpM $ \i -> if i >= n then Just (var (i - n)) else IM.lookup i vars
+  where
+  vars = IM.fromList [ (v,var i) | (i, unVar -> Just v) <- zip [0..] (toList xs) ]
+-}
+
+unsubstN :: Subst a => Seq a -> a -> Maybe a
+unsubstN xs = mapExpM $ \i -> IM.lookup i vars
   where
   vars = IM.fromList [ (v,var i) | (i, unVar -> Just v) <- zip [0..] (toList xs) ]
 
