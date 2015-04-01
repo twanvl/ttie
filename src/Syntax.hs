@@ -1,14 +1,15 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns, PatternSynonyms #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Syntax where
 
 import Prelude ()
 import Util.MyPrelude
-import Util.Pretty
+import Util.PrettyM
 import Util.Parser
 import Util.Tagged.Var
 import qualified Util.Tagged.Internal as TV
@@ -191,6 +192,13 @@ renameForPrinting (Bound n b)
   where
   n' = freshName n b
 
+nameForPrinting :: Bound Exp -> Bound Exp
+nameForPrinting (Bound n b)
+  | varUsed 0 b = Bound n' (subst1 (Free n') b)
+  | otherwise   = Bound "" b
+  where
+  n' = freshName n b
+
 -- convert all unbound names to Vars
 -- function specifies which Frees to keep
 
@@ -235,51 +243,54 @@ captureMany ns = runIdentity . traverseExp 0 ExpTraversal
 -- Pretty Printing
 --------------------------------------------------------------------------------
 
-{-
-class PrettyM a where
-  pprM :: TcEnv -> Int -> a -> Doc
--}
-
-instance Pretty Exp where
-  ppr _ (Var i) = text "#" <> ppr 0 i
+instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
+  ppr _ (Var i) = text "#" <.> ppr 0 i
   ppr p (Free c) = ppr p c
   ppr _ (Set ZeroLevel) = text "Set"
-  ppr _ (Set (IntLevel i)) = text "Set" <> int i
-  ppr _ (Set l) = text "Set" <> ppr 11 l
+  ppr _ (Set (IntLevel i)) = text "Set" <.> int i
+  ppr _ (Set l) = text "Set" <.> ppr 11 l
   ppr p (App a b) = group $ parenIf (p > 10) $ ppr 10 a $/$ ppr 11 b
-  ppr p (Binder x a b) = case x of
-    PiB  -> group $ parenIf (p > 1)  $ ppr 2 a' $/$ text "->" <+> ppr 1 b'
-    SiB  -> group $ parenIf (p > 2)  $ ppr 3 a' $/$ text "*"  <+> ppr 2 b'
-    LamB -> group $ parenIf (p > 1)  $ ppr 10 a' $/$ text "=>" <+> ppr 1 b'
+  {-ppr p (Binder x a b) = do
     where (a',b') = namedBound a (renameForPrinting b)
-  ppr p (Proj x y) = group $ parenIf (p > 10) $ text "proj" <> int (fromEnum x+1) <+> ppr 11 y
-  ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <> text "," $$ ppr 2 y
+    case x of
+      PiB  -> group $ parenIf (p > 1) $ ppr 2 a' $/$ text "->" <+> localBound (argValue a') (ppr 1 b')
+      SiB  -> group $ parenIf (p > 2) $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
+      LamB -> group $ parenIf (p > 1) $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')-}
+  ppr p (Binder x a b) = case x of
+    PiB  -> group $ parenIf (p > 1)  $ ppr 2 a' $/$ text "->" <+> localBound (argValue a') (ppr 1 b')
+    SiB  -> group $ parenIf (p > 2)  $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
+    LamB -> group $ parenIf (p > 1)  $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')
+    where (a',b') = namedBound a (renameForPrinting b)
+  ppr p (Proj x y) = group $ parenIf (p > 10) $ text "proj" <.> int (fromEnum x+1) <+> ppr 11 y
+  ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
     | Seq.null args = ppr 0 i
-    | otherwise     = ppr 0 i <> semiBrackets (map (ppr 0) (toList args))
-    -- | otherwise     = text "?" <> ppr 0 i <> semiBrackets [ ppr 0 a <+> text "=" <+> ppr 0 b | (a,b) <- IM.toList args]
+    | otherwise     = ppr 0 i <.> semiBrackets (map (ppr 0) (toList args))
   ppr _ Blank = text "_"
 
-instance Pretty Level where
+instance Applicative m => Pretty m Level where
   ppr _ (IntLevel i) = int i
-  ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ ppr 0 mv <> if i == 0 then mempty else text "+" <> int i | (mv,i) <- TM.toList ls]
+  ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ ppr 0 mv <.> if i == 0 then emptyDoc else text "+" <.> int i | (mv,i) <- TM.toList ls]
 
-instance Pretty Decl where
+instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Decl where
   ppr p (DeclType names typ) = group $ parenIf (p > 0) $ hsep (map (ppr 0) names) $/$ text ":" <+> ppr 0 typ
   ppr p (Rule lhs rhs)       = group $ parenIf (p > 0) $ ppr 0 lhs $/$ text "=" <+> ppr 0 rhs
 
-instance Pretty MetaVar where
-  ppr _ (TV.TV i) = text "?" <> ppr 0 i
-instance Pretty LevelMetaVar where
-  ppr _ (TV.TV i) = text "?" <> ppr 0 i
+instance Applicative m => Pretty m MetaVar where
+  ppr _ (TV.TV i) = text "?" <.> ppr 0 i
+instance Applicative m => Pretty m LevelMetaVar where
+  ppr _ (TV.TV i) = text "?" <.> ppr 0 i
 
 instance Show Exp where
-  showsPrec p = shows . ppr p
+  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
 instance Show Level where
-  showsPrec p = shows . ppr p
+  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
 instance Show Decl where
-  showsPrec p = shows . ppr p
+  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
+
+showExp :: NamesT Identity Doc -> String
+showExp = showDoc . runIdentity . runNamesT
 
 --------------------------------------------------------------------------------
 -- Parsing
@@ -417,7 +428,7 @@ mkBinders binder args c = foldr bind c args
 toNames :: Exp -> Parser [Name]
 toNames (toName -> Just x) = return [x]
 toNames (AppV xs (toName -> Just x)) = (++ [x]) <$> toNames xs
-toNames x = failDoc $ text "Left hand side of ':' should be a list of names, found" $/$ ppr 0 x
+toNames x = fail $ showExp $ text "Left hand side of ':' should be a list of names, found" $/$ ppr 0 x
 
 toName :: Exp -> Maybe Name
 toName (Free x) = Just x

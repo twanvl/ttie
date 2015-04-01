@@ -6,11 +6,12 @@ module Names where
 
 import Prelude ()
 import Util.MyPrelude
-import Util.Pretty
+import Util.PrettyM
 import Util.Parser
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Sequence as Seq
 
 --------------------------------------------------------------------------------
 -- Helper type: names are strings
@@ -124,7 +125,7 @@ class Applicative f => MonadBound exp f where
   traverseBinder :: (b -> Bound c -> d) -> (exp -> f b) -> (a -> f c) -> exp -> Bound a -> f d
   traverseBinder f g h x y = f <$> g x <*> traverseBound x h y
 
-class Functor f => MonadBoundNames f where
+class (Applicative f, Monad f) => MonadBoundNames f where
   boundNames :: f (Seq Name)
   boundNamesSet :: f (Set Name)
   boundNamesSet = Set.fromList . toList <$> boundNames
@@ -158,6 +159,10 @@ newtype NamesT f a = NamesT { unNamesT :: ReaderT (Seq Name) f a }
   deriving (Functor,Applicative,Monad)
 instance Applicative f => MonadBound exp (NamesT f) where
   localBound x = NamesT . local' (namedName x <|) . unNamesT
+instance (Applicative f, Monad f) => MonadBoundNames (NamesT f) where
+  boundNames = NamesT ask
+runNamesT :: NamesT f a -> f a
+runNamesT = flip runReaderT Seq.empty . unNamesT
 
 --------------------------------------------------------------------------------
 -- Traversing children of expressions
@@ -176,14 +181,14 @@ instance TraverseChildren exp a => TraverseChildren exp (Arg a) where
 namedBound :: Arg a -> Bound b -> (NamedArg a,b)
 namedBound x y = (named (boundName y) <$> x, boundBody y)
 
-instance Pretty a => Pretty (Named a) where
+instance Pretty m a => Pretty m (Named a) where
   ppr p (Named "" a) = ppr p a
   ppr p (Named n  a) = group $ parenIf (p > 0) $ ppr 1 n $/$ text ":" <+> ppr 0 a
 
-instance Pretty a => Pretty (Bound a) where
+instance Pretty m a => Pretty m (Bound a) where
   ppr p (Bound n a) = group $ parenIf (p > 0) $ brackets (ppr 0 n) <+> ppr 0 a
 
-instance Pretty a => Pretty (Arg a) where
+instance Pretty m a => Pretty m (Arg a) where
   ppr p (Arg Visible a) = ppr p a
   ppr _ (Arg Hidden  a) = braces $ ppr 0 a
 
