@@ -52,6 +52,9 @@ substs = raiseSubsts 0
 subst1 :: Subst a => a -> (a -> a)
 subst1 x = substs [x]
 
+substBound :: Subst a => Bound a -> a -> a
+substBound x y = subst1 y (boundBody x)
+
 substsN :: Subst a => Seq a -> (a -> a)
 substsN Empty = id
 substsN xs = mapExp $ \i -> if i < Seq.length xs

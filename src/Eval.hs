@@ -65,7 +65,7 @@ evalMeta s x xs = do
     Just m' -> eval s m'
 
 evalApp :: EvalStrategy -> Exp -> Arg Exp -> TcM Exp
-evalApp s (Lam _ x) y = evalMore s $ subst1 (argValue y) (boundBody x)
+evalApp s (Lam _ x) y = evalMore s $ substBound x (argValue y)
 evalApp _ x y = pure $ App x y
 
 evalProj :: EvalStrategy -> Proj -> Exp -> TcM Exp
