@@ -65,11 +65,15 @@ unifyMeta' swapped mv args y = case unsubstN args y of
     return y
 
 --unifyLevelMeta :: LevelMetaVar -> Seq Exp -> Exp -> TcM Exp
+tcError :: Doc -> TcM a
+tcError err = throwError =<< pure err $$
+  text "With metas:" $$ indent 2 (vcat . map (uncurry pprMeta) =<< getAllMetas) $$
+  text "With level metas:" $$ indent 2 (vcat . map (uncurry pprLevelMeta) =<< getAllLevelMetas)
 
 unifyLevels :: Level -> Level -> TcM Level
 unifyLevels x y | x == y = pure x
 unifyLevels x y = do
-  throwError =<< text "Failed to unify" <+> ppr 11 (Set x) <+> text "with" <+> ppr 11 (Set y)
+  tcError =<< text "Failed to unify" <+> ppr 11 (Set x) <+> text "with" <+> ppr 11 (Set y)
 
 -- | Unify two expressions.
 -- requires that the expressions have the same type
@@ -82,7 +86,7 @@ unify x y =
     y' <- eval WHNF y
     if x /= x' || y /= y'
       then unify' x' y' `catchError` \_ -> throwError err
-      else throwError err
+      else throwError =<< pure err $$ text "When unifying" <+> ppr 11 x <+> text "with" <+> ppr 11 y
 
 -- | Unify two expressions that are in WHNF (or that we assume to have equal heads).
 -- The left is the 'actual' type (of an argument e.g.),
@@ -100,7 +104,7 @@ unify' (Meta x args) y = unifyMeta id   x args y
 unify' y (Meta x args) = unifyMeta flip x args y
 unify' x y | x == y = return x
 unify' x y = do
-  throwError =<< text "Failed to unify" <+> ppr 11 x <+> text "with" <+> ppr 11 y
+  tcError =<< text "Failed to unify" <+> ppr 11 x <+> text "with" <+> ppr 11 y
 
 unifyName :: Name -> Name -> Name
 unifyName "" n = n

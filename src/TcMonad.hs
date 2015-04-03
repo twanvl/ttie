@@ -47,6 +47,7 @@ data UnificationState = UnificationState
 data MetaValue = MVExp
   { mvValue :: Maybe Exp
   , mvType  :: Exp
+  , mvArgs  :: Seq (Named Exp) -- name and type of 'bound variables'
   }
 
 emptyUS :: UnificationState
@@ -96,7 +97,7 @@ boundType :: Int -> TcM (Named Exp)
 boundType i = do
   tys <- boundTypes
   if 0 <= i && i < Seq.length tys
-    then return $ Seq.index tys i
+    then return $ map (raiseBy (i+1)) $ Seq.index tys i
     else throwError =<< text "Variable not bound:" <+> int i
 
 freeType :: Name -> TcM Exp
@@ -110,6 +111,20 @@ annError :: (Applicative m, MonadError Doc m) => m a -> m Doc -> m a
 annError x y = catchError x $ \err -> do
   ann <- catchError y (const $ throwError err)
   throwError =<< pure err $$ pure ann
+
+pprMeta :: MetaVar -> MetaValue -> TcM Doc
+pprMeta mv (MVExp val ty args) = ppr 0 mv <+> tcWithoutCtx (go (toList $ Seq.reverse args))
+  where
+  tcWithoutCtx :: TcM a -> TcM a
+  tcWithoutCtx = TcM . local (const emptyCtx) . unTcM
+  go [] = case val of
+    Nothing -> text ":" <+> ppr 0 ty
+    Just v  -> text "=" <+> ppr 0 v
+  go (x:xs) = ppr 11 x <+> localBound x (go xs)
+
+pprLevelMeta :: LevelMetaVar -> Maybe Level -> TcM Doc
+pprLevelMeta mv (Nothing) = ppr 0 mv <+> text ": Level"
+pprLevelMeta mv (Just v) = ppr 0 mv <+> text "=" <+> ppr 0 v
 
 --------------------------------------------------------------------------------
 -- Getting/setting/adding MetaVars and LevelMetaVars
@@ -129,9 +144,9 @@ freshLevelMetaVar = TcM $ do
 
 freshMeta :: Exp -> TcM Exp
 freshMeta ty = do
-  mv <- freshMetaVar (MVExp Nothing ty)
-  numBound <- TcM $ asks $ Seq.length . ctxVarType
-  let args = Seq.fromList $ map Var [0..numBound-1]
+  boundTys <- TcM $ asks $ ctxVarType
+  mv <- freshMetaVar (MVExp Nothing ty boundTys)
+  let args = Seq.fromList $ map Var [0..Seq.length boundTys-1]
   return (Meta mv args)
 
 freshMetaLevel :: TcM Level
@@ -162,6 +177,12 @@ modifyLevelMetaVar mv f = TcM $ modify $ modifyUsLevelMetas $ TS.modify f mv
 
 putLevelMetaVar :: LevelMetaVar -> Maybe Level -> TcM ()
 putLevelMetaVar mv x = modifyLevelMetaVar mv (const x)
+
+getAllMetas :: TcM [(MetaVar,MetaValue)]
+getAllMetas = TcM $ gets $ TS.toList . usMetas
+
+getAllLevelMetas :: TcM [(LevelMetaVar,Maybe Level)]
+getAllLevelMetas = TcM $ gets $ TS.toList . usLevelMetas
 
 --------------------------------------------------------------------------------
 -- Expanding metas

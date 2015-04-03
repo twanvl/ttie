@@ -35,8 +35,8 @@ mapExp :: Subst a => (Int -> a) -> (a -> a)
 mapExp f = runIdentity . mapExpM (pure . f)
 
 raiseBy :: Subst a => Int -> a -> a
-raiseBy i (unVar -> Just x) = var (i + x)
 raiseBy 0 x = x
+raiseBy n (unVar -> Just x) = var (n + x)
 raiseBy n x = mapExp (\i -> var (n + i)) x
 
 raiseSubsts :: Subst a => Int -> [a] -> (a -> a)
@@ -52,20 +52,17 @@ substs = raiseSubsts 0
 subst1 :: Subst a => a -> (a -> a)
 subst1 x = substs [x]
 
-substBound :: Subst a => Bound a -> a -> a
-substBound x y = subst1 y (boundBody x)
-
 substsN :: Subst a => Seq a -> (a -> a)
 substsN Empty = id
 substsN xs = mapExp $ \i -> if i < Seq.length xs
   then Seq.index xs i
   else var (i - Seq.length xs)
 
-{-
 lowerBy :: Subst a => Int -> a -> Maybe a
 lowerBy 0 = pure
 lowerBy n = mapExpM $ \i -> if i < n then Nothing else Just $ var (i - n)
 
+{-
 lowerByN :: Subst a => Int -> Seq a -> a -> Maybe a
 lowerByN 0 _ = pure
 lowerByN n xs = mapExpM $ \i -> if i >= n then Just (var (i - n)) else IM.lookup i vars
@@ -81,6 +78,17 @@ unsubstN xs = mapExpM $ \i -> IM.lookup i vars
 -- does a variable occur free in the given expression
 varUsed :: Subst a => Int -> a -> Bool
 varUsed v = getAny . getConst . mapExpM (\i -> Const . Any $ i == v)
+
+--------------------------------------------------------------------------------
+-- Substitution and friends for Bound
+--------------------------------------------------------------------------------
+
+substBound :: Subst a => Bound a -> a -> a
+substBound x y = subst1 y (boundBody x)
+
+-- Get the value from a bound where the name is not used
+lowerBound :: Subst a => Bound a -> Maybe a
+lowerBound = lowerBy 1 . boundBody
 
 -- A 'Bound' where the bound name is not used
 notBound :: Subst a => a -> Bound a
