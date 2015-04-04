@@ -139,12 +139,17 @@ annError x y = catchError x $ \err -> do
 
 class EvalAllMetas a where
   evalAllMetas :: a -> TcM a
+  evalAllMetasThrow :: a -> TcM a
+  evalAllMetasWith :: (TcM Doc -> TcM ()) -> a -> TcM a
+  evalAllMetas      = evalAllMetasWith (\_ -> return ())
+  evalAllMetasThrow = evalAllMetasWith (\msg -> throwError =<< msg)
+
 instance (EvalAllMetas a, EvalAllMetas b) => EvalAllMetas (a,b) where
-  evalAllMetas = traversePair evalAllMetas evalAllMetas
+  evalAllMetasWith f = traversePair (evalAllMetasWith f) (evalAllMetasWith f)
 instance EvalAllMetas Doc where
-  evalAllMetas = pure
+  evalAllMetasWith _ = pure
 instance EvalAllMetas () where
-  evalAllMetas = pure
+  evalAllMetasWith _ = pure
 
 tcPpr :: (EvalAllMetas a, Pretty TcM a) => Int -> a -> TcM Doc
 tcPpr i x = ppr i =<< evalAllMetas x
@@ -245,26 +250,34 @@ evalMetas x@(Meta mv args) = do
 evalMetas x = pure x
 
 -- Evaluate all metas, give an error for unresolved ones
-evalAllExpMetas :: Exp -> TcM Exp
-evalAllExpMetas (Meta mv args) = do
+evalAllExpMetas :: (TcM Doc -> TcM ()) -> Exp -> TcM Exp
+evalAllExpMetas err (Meta mv args) = do
   x' <- metaValue mv args
   case x' of
-    Nothing  -> --throwError =<< text "Unresolved meta" --
-                Meta mv <$> traverse evalAllMetas args
+    Nothing  -> do err (text "Unresolved meta:" <+> tcPpr 0 (Meta mv args)
+                        $$ text "of type" <+> (tcPpr 0 =<< metaType mv args))
+                   Meta mv <$> traverse evalAllMetas args
     Just x'' -> evalAllMetas x''
-evalAllExpMetas (Set i) = Set <$> evalLevel i
-evalAllExpMetas x = traverseChildren evalAllExpMetas x
+evalAllExpMetas err (Set i) = Set <$> evalLevelWith err i
+evalAllExpMetas err x = traverseChildren (evalAllExpMetas err) x
 
 instance EvalAllMetas Exp where
-  evalAllMetas = evalAllExpMetas
+  evalAllMetasWith = evalAllExpMetas
 
 --------------------------------------------------------------------------------
 -- Expand metas in levels
 --------------------------------------------------------------------------------
 
 evalLevel :: Level -> TcM Level
-evalLevel x@(IntLevel _) = pure x
-evalLevel (Level i j) = foldr maxLevel (intLevel i) <$> mapM evalLevelVar (TM.toList j)
+evalLevel = evalLevelWith (const $ return ())
+
+evalLevelWith :: (TcM Doc -> TcM ()) -> Level -> TcM Level
+evalLevelWith _ x@(IntLevel _) = pure x
+evalLevelWith err (Level i j) = do
+  lvl'@(Level _ j') <- foldr maxLevel (intLevel i) <$> mapM evalLevelVar (TM.toList j)
+  unless (TM.null j') $ do
+    err (traceM "unresolved level" >> text "Unresolved level metas in" <+> ppr 0 lvl')
+  return lvl'
 
 evalLevelVar :: (LevelMetaVar, Int) -> TcM Level
 evalLevelVar (mv,add) = do
@@ -274,5 +287,5 @@ evalLevelVar (mv,add) = do
     Just l' -> addLevel add <$> evalLevel l'
 
 instance EvalAllMetas Level where
-  evalAllMetas = evalLevel
+  evalAllMetasWith = evalLevelWith
 

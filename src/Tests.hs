@@ -114,8 +114,10 @@ instance IsTest TestCase where
 -- Test of parser and typechecker
 --------------------------------------------------------------------------------
 
-myTestTcM :: EvalAllMetas a => TcM a -> Either String a
-myTestTcM mx = showError $ runTcM testCtx $ evalAllMetas =<< mx
+myTestTcM :: (EvalAllMetas a, Pretty TcM a) => TcM a -> Either String a
+myTestTcM mx = showError $ runTcM testCtx $ do
+  x <- mx
+  evalAllMetasThrow x `annError` (text "in" <+> ppr 0 x)
 
 testExp :: String -> Either String String
 testExp xStr = do
@@ -148,11 +150,7 @@ testBadExp xStr = do
   x <- testPart "Parsing" $
     showError $ runParser parseExpTop "input" xStr
   assertFailed "Type inference should fail" $
-    runTcM testCtx $ evalAllMetas =<< tc Nothing x
-
---------------------------------------------------------------------------------
--- Test of typechecker
---------------------------------------------------------------------------------
+    myTestTcM $ tc Nothing x
 
 --------------------------------------------------------------------------------
 -- Main: testcases
