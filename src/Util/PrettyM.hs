@@ -56,9 +56,10 @@ nest n = fmap (PP.nest n)
 indent :: Functor m => Int -> m Doc -> m Doc
 indent n = fmap (PP.indent n)
 
-group, align, parens, angles, braces, brackets :: Functor m => m Doc -> m Doc
+group, align, flatten, parens, angles, braces, brackets :: Functor m => m Doc -> m Doc
 group  = fmap PP.group
 align  = fmap PP.align
+flatten = fmap PP.flatten
 parens = fmap PP.parens
 angles = fmap PP.angles
 braces = fmap PP.braces
@@ -127,6 +128,10 @@ parenIf False = id
 alignIf :: Functor m => Bool -> m Doc -> m Doc
 alignIf True  = align
 alignIf False = id
+
+parenAlignIf :: Functor m => Bool -> m Doc -> m Doc
+parenAlignIf True  = parens . align
+parenAlignIf False = id
 
 semiBrackets :: Applicative m => [m Doc] -> m Doc
 semiBrackets = encloseSep lbracket rbracket semi

@@ -13,12 +13,12 @@ module Util.MyPrelude
     -- instead use Foldable/Traversable
     Eq(..), Ord(..)
   , Show(..), ShowS, shows, showString, showParen
-  , Num(..), Integral(..), fromIntegral, Real(..), Fractional(..), RealFrac(..)
+  , Num(..), Integral(..), fromIntegral, Real(..), Fractional(..), RealFrac(..), subtract
   , Enum(..)
   , Read(..), read
   , id, (.), ($), flip, const
   , fst, snd, curry, uncurry
-  , first, second
+  , first, second, (***)
   , seq
   , Int
   , Char, String, (++), null, length, (!!)
@@ -84,7 +84,7 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Identity (IdentityT(..))
 import Control.Applicative
-import Control.Arrow (first,second)
+import Control.Arrow (first,second,(***))
 import Data.Monoid
 import Data.List (intersperse)
 import Data.Bool
@@ -207,6 +207,9 @@ seqZipWithM f a b = sequenceA (Seq.zipWith f a b)
 
 seqZipWithM_ :: Applicative m => (a -> b -> m ()) -> Seq a -> Seq b -> m ()
 seqZipWithM_ f a b = sequenceA_ (Seq.zipWith f a b)
+
+seqCatMaybes :: Seq (Maybe a) -> Seq a
+seqCatMaybes = foldl (\xs x -> maybe xs (xs |>) x) empty
 
 --------------------------------------------------------------------------------
 -- Graph

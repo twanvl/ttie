@@ -70,14 +70,29 @@ lowerByN n xs = mapExpM $ \i -> if i >= n then Just (var (i - n)) else IM.lookup
   vars = IM.fromList [ (v,var i) | (i, unVar -> Just v) <- zip [0..] (toList xs) ]
 -}
 
-unsubstN :: Subst a => Seq a -> a -> Maybe a
-unsubstN xs = mapExpM $ \i -> IM.lookup i vars
-  where
-  vars = IM.fromList [ (v,var i) | (i, unVar -> Just v) <- zip [0..] (toList xs) ]
-
 -- does a variable occur free in the given expression
 varUsed :: Subst a => Int -> a -> Bool
 varUsed v = getAny . getConst . mapExpM (\i -> Const . Any $ i == v)
+
+--------------------------------------------------------------------------------
+-- 'un'substitution
+--------------------------------------------------------------------------------
+
+-- | Expressing each variable of the target as an expression of the source
+-- i.e. the type of meta arguments
+type InvCtxMap a = Seq a
+
+-- Expressing some variables of the source as an expression of the target
+type PartialCtxMap a = IntMap a
+
+-- Go from arguments that express each target var as a source expression 
+invCtxMap :: Subst a => InvCtxMap a -> PartialCtxMap a
+invCtxMap xs = IM.fromList [ (v,var i) | (i, unVar -> Just v) <- zip [0..] (toList xs) ]
+
+unsubstN :: Subst a => InvCtxMap a -> a -> Maybe a
+unsubstN xs = mapExpM $ \i -> IM.lookup i vars
+  where
+  vars = invCtxMap xs
 
 --------------------------------------------------------------------------------
 -- Substitution and friends for Bound

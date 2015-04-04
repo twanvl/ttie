@@ -16,25 +16,89 @@ import TcMonad
 import Eval
 
 import qualified Data.Sequence as Seq
+import qualified Data.IntMap as IM
+
+--------------------------------------------------------------------------------
+-- Transfering expressions between contexts
+--------------------------------------------------------------------------------
+
+-- | Transfer an expression to a different context, essentially the inverse of substitution.
+-- This is a generalization of unsubstN.
+-- Can unsubst metas ?1[a,b,c] when b can not be represented in the target
+unsubst :: Seq Exp -> Exp -> TcM (Maybe Exp)
+unsubst xs x0 = do
+  l0 <- boundDepth
+  if l0 /= Seq.length xs
+    then error "Internal error: depth doesn't match number of arguments"
+    else unsubst' l0 (invCtxMap xs) x0
+
+unsubst' :: Int -> PartialCtxMap Exp -> Exp -> TcM (Maybe Exp)
+unsubst' l0 vars x0 = go x0
+  where
+  go x = do
+      l <- subtract l0 <$> boundDepth -- depth of the source
+      x' <- evalMetas x
+      case x' of
+        Var i
+          | i < l     -> return $ Just $ Var i
+          | otherwise -> return $ raiseBy l <$> IM.lookup (i-l) vars
+        Meta mv args -> do
+          margs' <- mapM go args
+          case sequence margs' of
+            Just args' -> return $ Just $ Meta mv args'
+            Nothing -> do
+              -- we don't have to give up, we can replace ?1[#0,#1,#2,#3] by ?2[#0,#1] if e.g. #1 is not in vars
+              -- i.e. keep only the Just arguments
+              mval <- getMetaVar mv
+              simpler <- filterCtx margs' (mvArgs mval) (mvType mval)
+              case simpler of
+                Nothing -> return Nothing
+                Just (vars',args',tys',ty') -> do
+                  -- make a new meta with only a subset of the context
+                  mv' <- freshMetaVar (MVExp Nothing ty' tys')
+                  -- let mv point to mv' (with a subset of the arguments)
+                  modifyMetaVar mv $ \val -> val { mvValue = Just $ Meta mv' vars' }
+                  {-
+                  traceM $ "Unifying metas: " ++ show mv ++ " --> " ++ show mv'
+                  traceM $ "Forwarded as " ++ show mv ++ " = " ++ show (Meta mv' vars')
+                  traceM $ "Returned as " ++ show (Meta mv args) ++ " ~= " ++ show (Meta mv' args') ++ " by " ++ show vars
+                  -}
+                  return $ Just $ Meta mv' args'
+        _ -> runMaybeT $ traverseChildren (MaybeT . go) x
+
+-- Suppose we are trying to abstract  (?2[#0,#1,#2] -> bar) to assign it to ?1[#0,foo #0,#3]
+-- which means that we map #0->#0, #1->Nothing, #2->#3
+-- and we encounter a meta  ?2[#0,#1,#2].
+-- We have to replace this by a new meta ?3[#0,#2], and set ?2=?3[#0,#2], and ?1=?3[#0,#3]->bar
+-- this is only allowed if this new made would be have well-typed arguments.
+
+-- Make the type of a meta that takes just a subset of the arguments
+filterCtx :: Seq (Maybe a) -- ^ arguments to keep (those for which we have a representation in the target context)
+          -> Seq (Named Exp) -- ^ Original argument types
+          -> Exp -- ^ original result type
+          -> TcM (Maybe (Seq Exp, Seq a, Seq (Named Exp), Exp))
+filterCtx xs0 tys0 ty0 = withCtx Seq.empty $ go Seq.empty xs0 tys0
+  where
+  -- vars gives for each variable in the context the corresponding index in tys
+  go vars (xs :> Just x) (tys :> Named n ty) = do
+    mty' <- unsubst vars ty
+    case mty' of
+      Nothing  -> go vars xs tys
+      Just ty' -> do
+        map (\(vars',xs',tys',ty0') -> (vars', xs' |> x, tys' |> Named n ty', ty0'))
+          <$> localBound (Named n ty') (go (Var 0 <| map (raiseBy 1) vars) xs tys)
+  go vars (xs :> Nothing) (tys :> _ty) = do
+    go (map (raiseBy 1) vars) xs tys
+  go vars _ _ = do
+    map (\ty0' -> (vars,Seq.empty,Seq.empty,ty0'))
+      <$> unsubst vars ty0
 
 --------------------------------------------------------------------------------
 -- Unification
 --------------------------------------------------------------------------------
 
 -- make sure actual/expected arguments stay in the right order
-{-
-data Swapped = NotSwapped | Swapped deriving (Eq)
-swapped :: Swapped -> (a -> a -> b) -> (a -> a -> b)
-swapped NotSwapped f = f
-swapped NotSwapped f = f
--}
 type Swapped = (forall a b. (a -> a -> b) -> (a -> a -> b))
-{-
-data UnifySide = LeftExpected | RightExpected
-swapSide :: UnifySide -> UnifySide
-swapSide LeftExpected = RightExpected
-swapSide RightExpected = LeftExpected
--}
 
 -- | Verify that a meta doesn't occur in an expression
 occursCheck :: MetaVar -> Exp -> TcM ()
@@ -54,15 +118,21 @@ unifyMeta' _ mv args (Meta mv' args') | mv' == mv =
 unifyMeta' swapped mv args (Meta mv' args') | Seq.length args < Seq.length args' =
   -- unify the other way around, otherwise unsubstN will fail
   unifyMeta' (flip . swapped) mv' args' (Meta mv args)
-unifyMeta' swapped mv args y = case unsubstN args y of
-  Nothing -> throwError =<< text "Variables not in scope of meta"
-                         $$ ppr 0 (Meta mv args)
-                         $$ ppr 0 y
-  Just y' -> do
-    -- perform occurs check: y' must not contain mv
-    occursCheck mv y
-    modifyMetaVar mv $ \val -> val { mvValue = Just y' }
-    return y
+unifyMeta' _swapped mv args y = do
+  -- perform occurs check: y must not contain mv
+  occursCheck mv y
+  -- y can only use variables that occur in args
+  my' <- withMetaContext mv $ unsubst args y
+  case my' of
+    Nothing -> tcError =<< text "Variables not in scope of meta"
+                           $$ indent 2 (ppr 0 (Meta mv args))
+                           $$ indent 2 (ppr 0 y)
+    Just y' -> do
+      modifyMetaVar mv $ \val -> val { mvValue = Just y' }
+      return y
+
+-- | Rexpress x in terms of the local context
+--(Int -> Maybe ) -> Exp -> TcM Exp
 
 --unifyLevelMeta :: LevelMetaVar -> Seq Exp -> Exp -> TcM Exp
 tcError :: Doc -> TcM a
@@ -125,9 +195,10 @@ unifySet x = do
   evalLevel i
 
 -- | Unify x with (Binder b (Arg h _) _)
-unifyBinder :: Binder -> Hiding -> Exp -> TcM (Exp, Bound Exp)
-unifyBinder b h (Binder b' (Arg h' x) y) | b == b' && h == h' = return (x,y)
-unifyBinder b h xy = do
+unifyBinder, unifyBinder' :: Binder -> Hiding -> Exp -> TcM (Exp, Bound Exp)
+unifyBinder b h = unifyBinder' b h <=< evalMetas
+unifyBinder' b h (Binder b' (Arg h' x) y) | b == b' && h == h' = return (x,y)
+unifyBinder' b h xy = do
   x <- freshMetaSet
   y <- Bound "" <$> localBound (unnamed x) freshMetaSet
   Binder _ (Arg _ x') y' <- unify xy (Binder b (Arg h x) y)
@@ -192,7 +263,7 @@ tc Nothing (App x (Arg h y)) = do
   (y',_) <- tc (Just ty1) y
   return (App x' (Arg h y'), substBound ty2 y')
 tc Nothing (TypeSig x y) = do
-  (y',l) <- tcType y
+  (y',_l) <- tcType y
   tc (Just y') x
 tc Nothing (Lam (Arg h x) (Bound n y)) = do
   (x',_) <- tcType x
@@ -208,6 +279,15 @@ tc Nothing (Pair (Arg h x) y Blank) = do
   (y',ty) <- tc Nothing y
   let txy = Si (Arg h tx) (notBound ty)
   return (Pair (Arg h x') y' txy, txy)
+tc mty (Pair (Arg h x) y ty) = do
+  (ty',_) <- tcType ty
+  ty'' <- case mty of
+    Nothing -> pure ty'
+    Just ty2 -> unify ty' ty2
+  (ty1,ty2) <- unifyBinder SiB h ty''
+  (x',_) <- tc (Just ty1) x
+  (y',_) <- tc (Just $ substBound ty2 x') y
+  return (Pair (Arg h x') y' ty'', ty'')
 tc Nothing (Meta x args) = do
   val <- metaValue x args
   case val of

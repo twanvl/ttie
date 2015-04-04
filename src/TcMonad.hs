@@ -73,6 +73,8 @@ newtype TcM a = TcM { unTcM :: ReaderT Ctx (ExceptT Doc (State UnificationState)
 
 instance MonadBound Exp TcM where
   localBound ty = TcM . local (pushCtx ty) . unTcM
+  -- use the transformed type information in traverseBinder.
+  traverseBinder f g h x y = g x >>= \x' -> f x' <$> traverseBound x' h y
 
 instance MonadBoundNames TcM where
   boundNames = map namedName <$> boundTypes
@@ -87,6 +89,10 @@ testTcM :: TcM a -> a
 testTcM x = case runTcM x of
   Left e -> error (show e)
   Right y -> y
+
+-- | Replace the context of bound variables
+withCtx :: Seq (Named Exp) -> TcM a -> TcM a
+withCtx bound = TcM . local (\ctx -> ctx{ctxVarType = bound}) . unTcM
 
 --------------------------------------------------------------------------------
 -- Variables
@@ -113,14 +119,12 @@ annError x y = catchError x $ \err -> do
   throwError =<< pure err $$ pure ann
 
 pprMeta :: MetaVar -> MetaValue -> TcM Doc
-pprMeta mv (MVExp val ty args) = ppr 0 mv <+> tcWithoutCtx (go (toList $ Seq.reverse args))
+pprMeta mv (MVExp val ty args) = ppr 0 mv <+> align (withCtx Seq.empty (go (toList $ Seq.reverse args)))
   where
-  tcWithoutCtx :: TcM a -> TcM a
-  tcWithoutCtx = TcM . local (const emptyCtx) . unTcM
   go [] = case val of
     Nothing -> text ":" <+> ppr 0 ty
     Just v  -> text "=" <+> ppr 0 v
-  go (x:xs) = ppr 11 x <+> localBound x (go xs)
+  go (x:xs) = group $ ppr 11 x $$ localBound x (go xs)
 
 pprLevelMeta :: LevelMetaVar -> Maybe Level -> TcM Doc
 pprLevelMeta mv (Nothing) = ppr 0 mv <+> text ": Level"
@@ -183,6 +187,12 @@ getAllMetas = TcM $ gets $ TS.toList . usMetas
 
 getAllLevelMetas :: TcM [(LevelMetaVar,Maybe Level)]
 getAllLevelMetas = TcM $ gets $ TS.toList . usLevelMetas
+
+-- | Perform a function in the context of a metaValue
+withMetaContext :: MetaVar -> TcM a -> TcM a
+withMetaContext mv x = do
+  args <- mvArgs <$> getMetaVar mv
+  withCtx args x
 
 --------------------------------------------------------------------------------
 -- Expanding metas

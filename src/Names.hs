@@ -122,13 +122,19 @@ class Applicative f => MonadBound exp f where
   traverseBound ty f (Bound n x) = Bound n <$> localBound (named n ty) (f x)
 
   -- traverse a binder, using the old exp for type information
-  traverseBinder :: (b -> Bound c -> d) -> (exp -> f b) -> (a -> f c) -> exp -> Bound a -> f d
-  traverseBinder f g h x y = f <$> g x <*> traverseBound x h y
+  traverseBinder :: (exp -> Bound c -> d) -> (exp -> f exp) -> (a -> f c) -> exp -> Bound a -> f d
+  traverseBinder = traverseBinderDefault
+
+-- traverse a binder, using the old exp for type information
+traverseBinderDefault :: MonadBound exp f => (b -> Bound c -> d) -> (exp -> f b) -> (a -> f c) -> exp -> Bound a -> f d
+traverseBinderDefault f g h x y = f <$> g x <*> traverseBound x h y
 
 class (Applicative f, Monad f) => MonadBoundNames f where
   boundNames :: f (Seq Name)
   boundNamesSet :: f (Set Name)
   boundNamesSet = Set.fromList . toList <$> boundNames
+  boundDepth :: f Int
+  boundDepth = Seq.length <$> boundNames
 
 class (MonadBoundNames f, MonadBound exp f) => MonadBoundTypes exp f | f -> exp where
   boundTypes :: f (Seq (Named exp))
@@ -147,6 +153,8 @@ instance MonadBound exp [] where
   localBound _ = id
 instance (MonadBound exp f, Applicative g) => MonadBound exp (Compose f g) where
   localBound x (Compose y) = Compose (localBound x y)
+instance (MonadBound exp f, Monad f) => MonadBound exp (MaybeT f) where
+  localBound x (MaybeT y) = MaybeT (localBound x y)
 
 newtype DepthT f a = DepthT { unDepthT :: ReaderT Int f a }
   deriving (Functor,Applicative,Monad)

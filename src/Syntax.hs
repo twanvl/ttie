@@ -246,7 +246,7 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ (Set ZeroLevel) = text "Set"
   ppr _ (Set (IntLevel i)) = text "Set" <.> int i
   ppr _ (Set l) = text "Set" <.> ppr 11 l
-  ppr p (App a b) = group $ parenIf (p > 10) $ ppr 10 a $/$ ppr 11 b
+  ppr p (App a b) = group $ parenAlignIf (p > 10) $ ppr 10 a $/$ ppr 11 b
   {-ppr p (Binder x a b) = do
     where (a',b') = namedBound a (renameForPrinting b)
     case x of
@@ -254,9 +254,9 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
       SiB  -> group $ parenIf (p > 2) $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
       LamB -> group $ parenIf (p > 1) $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')-}
   ppr p (Binder x a b) = case x of
-    PiB  -> group $ parenIf (p > 1)  $ ppr 2 a' $/$ text "->" <+> localBound (argValue a') (ppr 1 b')
-    SiB  -> group $ parenIf (p > 2)  $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
-    LamB -> group $ parenIf (p > 1)  $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')
+    PiB  -> group $ parenAlignIf (p > 1) $ ppr 2 a' $/$ text "->" <+> localBound (argValue a') (ppr 1 b')
+    SiB  -> group $ parenAlignIf (p > 2) $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
+    LamB -> group $ parenAlignIf (p > 1) $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')
     where (a',b') = namedBound a (renameForPrinting b)
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
@@ -281,7 +281,7 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Decl where
 instance Applicative m => Pretty m MetaVar where
   ppr _ (TV.TV i) = text "?" <.> ppr 0 i
 instance Applicative m => Pretty m LevelMetaVar where
-  ppr _ (TV.TV i) = text "?" <.> ppr 0 i
+  ppr _ (TV.TV i) = text "?l" <.> ppr 0 i
 
 instance Show Exp where
   showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
