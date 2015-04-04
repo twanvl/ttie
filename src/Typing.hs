@@ -121,6 +121,10 @@ unifyMeta' swapped mv args (Meta mv' args') | Seq.length args < Seq.length args'
 unifyMeta' _swapped mv args y = do
   -- perform occurs check: y must not contain mv
   occursCheck mv y
+  -- unify the type of the metavar
+  mv_type <- mvType <$> getMetaVar mv
+  (_,y_type) <- tc Nothing y
+  _ <- unify mv_type y_type
   -- y can only use variables that occur in args
   my' <- withMetaContext mv $ unsubst args y
   case my' of
@@ -134,15 +138,20 @@ unifyMeta' _swapped mv args y = do
 -- | Rexpress x in terms of the local context
 --(Int -> Maybe ) -> Exp -> TcM Exp
 
---unifyLevelMeta :: LevelMetaVar -> Seq Exp -> Exp -> TcM Exp
-tcError :: Doc -> TcM a
-tcError err = throwError =<< pure err $$
-  text "With metas:" $$ indent 2 (vcat . map (uncurry pprMeta) =<< getAllMetas) $$
-  text "With level metas:" $$ indent 2 (vcat . map (uncurry pprLevelMeta) =<< getAllLevelMetas)
+unifyLevelMeta :: Swapped -> LevelMetaVar -> Level -> TcM Level
+unifyLevelMeta _swapped mv l = do
+  lMv <- getLevelMetaVar mv
+  if isJust lMv
+    then error "unifyLevelMeta: meta var already has a value"
+    else putLevelMetaVar mv (Just l)
+  return l
 
-unifyLevels :: Level -> Level -> TcM Level
-unifyLevels x y | x == y = pure x
-unifyLevels x y = do
+unifyLevels, unifyLevels' :: Level -> Level -> TcM Level
+unifyLevels x y = join $ unifyLevels' <$> evalLevel x <*> evalLevel y
+unifyLevels' x y | x == y = pure x
+unifyLevels' (MetaLevel x) y = unifyLevelMeta id   x y
+unifyLevels' x (MetaLevel y) = unifyLevelMeta flip y x
+unifyLevels' x y = do
   tcError =<< text "Failed to unify" <+> ppr 11 (Set x) <+> text "with" <+> ppr 11 (Set y)
 
 -- | Unify two expressions.
@@ -298,8 +307,8 @@ tc Nothing (Meta x args) = do
       return (Meta x args, ty)
 
 tc (Just ty) x = do
-  (x',ty') <- tc Nothing x
-  ty'' <- unify ty ty'
+  (x',tx) <- tc Nothing x
+  ty'' <- unify ty tx
   return (x',ty'')
 
 -- check that x is a type, return its level

@@ -133,6 +133,11 @@ nubOrdWith f = go Set.empty
     | f x `Set.member` seen = go seen xs
     | otherwise = x : go (Set.insert (f x) seen) xs
 
+trySubtract :: Int -> Int -> Maybe Int
+trySubtract i j
+  | i <= j = Just (j - i)
+  | otherwise = Nothing
+
 --------------------------------------------------------------------------------
 -- Tuples
 --------------------------------------------------------------------------------

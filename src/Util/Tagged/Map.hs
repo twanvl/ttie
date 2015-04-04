@@ -33,3 +33,5 @@ unionWith f (TM x) (TM y) = TM (IM.unionWith f x y)
 toList :: TaggedMap tag a -> [(TaggedVar tag, a)]
 toList = Prelude.map (first TV) . IM.toList . tm
 
+mapMaybe :: (a -> Maybe b) -> TaggedMap tag a -> TaggedMap tag b
+mapMaybe f = TM . IM.mapMaybe f . tm

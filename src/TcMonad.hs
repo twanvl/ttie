@@ -2,12 +2,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms #-}
 module TcMonad where
 
 import Prelude ()
 import Util.MyPrelude
 import Util.PrettyM
 import qualified Util.Tagged.Seq as TS
+import qualified Util.Tagged.Map as TM
 import Names
 import Substitution
 import Syntax
@@ -90,6 +92,9 @@ testTcM x = case runTcM x of
   Left e -> error (show e)
   Right y -> y
 
+testTcM' :: TcM a -> (a,Doc)
+testTcM' x = testTcM ((,) <$> x <*> dumpMetas)
+
 -- | Replace the context of bound variables
 withCtx :: Seq (Named Exp) -> TcM a -> TcM a
 withCtx bound = TcM . local (\ctx -> ctx{ctxVarType = bound}) . unTcM
@@ -113,22 +118,33 @@ freeType n = throwError =<< text "Free variable has no type:" <+> text n
 -- Error utilities
 --------------------------------------------------------------------------------
 
+tcError :: Doc -> TcM a
+tcError err = throwError =<< pure err $$ dumpMetas
+
+dumpMetas :: TcM Doc
+dumpMetas =
+  text "With metas:" $$ indent 2 (vcat . map (uncurry pprMeta) =<< getAllMetas) $$
+  text "With level metas:" $$ indent 2 (vcat . map (uncurry pprLevelMeta) =<< getAllLevelMetas)
+
 annError :: (Applicative m, MonadError Doc m) => m a -> m Doc -> m a
 annError x y = catchError x $ \err -> do
   ann <- catchError y (const $ throwError err)
   throwError =<< pure err $$ pure ann
 
+tcPpr :: Int -> Exp -> TcM Doc
+tcPpr i x = ppr i =<< evalAllMetas x
+
 pprMeta :: MetaVar -> MetaValue -> TcM Doc
 pprMeta mv (MVExp val ty args) = ppr 0 mv <+> align (withCtx Seq.empty (go (toList $ Seq.reverse args)))
   where
   go [] = case val of
-    Nothing -> text ":" <+> ppr 0 ty
-    Just v  -> text "=" <+> ppr 0 v
+    Nothing -> text ":" <+> tcPpr 0 ty
+    Just v  -> text ":" <+> tcPpr 0 ty <+> text "=" <+> ppr 0 v
   go (x:xs) = group $ ppr 11 x $$ localBound x (go xs)
 
 pprLevelMeta :: LevelMetaVar -> Maybe Level -> TcM Doc
 pprLevelMeta mv (Nothing) = ppr 0 mv <+> text ": Level"
-pprLevelMeta mv (Just v) = ppr 0 mv <+> text "=" <+> ppr 0 v
+pprLevelMeta mv (Just v) = ppr 0 mv <+> text "=" <+> ppr 0 v <+> text "=" <+> (ppr 0 =<< evalLevel v)
 
 --------------------------------------------------------------------------------
 -- Getting/setting/adding MetaVars and LevelMetaVars
@@ -204,38 +220,38 @@ metaType mv args = substsN args . mvType <$> getMetaVar mv
 metaValue :: MetaVar -> Seq Exp -> TcM (Maybe Exp)
 metaValue mv args = fmap (substsN args) . mvValue <$> getMetaVar mv
 
+-- Evaluate metas at the top
+evalMetas :: Exp -> TcM Exp
+evalMetas x@(Meta mv args) = do
+  x' <- metaValue mv args
+  case x' of
+    Nothing  -> pure x
+    Just x'' -> evalMetas x''
+evalMetas x = pure x
 
-{-
-evalMeta :: Int -> Seq Exp -> Maybe Exp
-evalMeta
+-- Evaluate all metas, give an error for unresolved ones
+evalAllMetas :: Exp -> TcM Exp
+evalAllMetas (Meta mv args) = do
+  x' <- metaValue mv args
+  case x' of
+    Nothing  -> --throwError =<< text "Unresolved meta" --
+                Meta mv <$> traverse evalAllMetas args
+    Just x'' -> evalAllMetas x''
+evalAllMetas (Set i) = Set <$> evalLevel i
+evalAllMetas x = traverseChildren evalAllMetas x
 
-evalLevelMetas :: Level -> TcM Level
-evalLevelMetas (Level i j) = Level i 
--}
+--------------------------------------------------------------------------------
+-- Expand metas in levels
+--------------------------------------------------------------------------------
 
-{-
-unifyMetas :: Meta -> Meta -> 
-unifyMeta
-unifyMetas :: (Int,Seq Exp) -> (Int,Seq Exp)
+evalLevel :: Level -> TcM Level
+evalLevel x@(IntLevel _) = pure x
+evalLevel (Level i j) = foldr maxLevel (intLevel i) <$> mapM evalLevelVar (TM.toList j)
 
-unify :: Exp -> Exp -> TcM Exp
-unify (App x y) (App x' y') = App <$> unify x x' <*> unify y y'
-
-compareExp :: Exp -> Exp -> 
-
-tryUnify :: Exp -> Exp -> TcM (Maybe Exp)
-
-class MonadCompare where
-
-unifySet :: Exp -> TcM LevelExp
-unifyPi :: Hiding -> Exp -> TcM (Arg Exp, Bound Exp)
-unifyPi (Pi x y) = return (x,y)
-unifyPi xy = do
-  x <- freshMetaAny
-  y <- tcLocal (unnamed x) freshMetaAny
-  unify (Pi x y) xy
-  return (x,y)
-
-Pi a b = Bound PiBinder a b
--}
+evalLevelVar :: (LevelMetaVar, Int) -> TcM Level
+evalLevelVar (mv,add) = do
+  l <- getLevelMetaVar mv
+  case l of
+    Nothing -> return $ addLevel add (metaLevel mv)
+    Just l' -> addLevel add <$> evalLevel l'
 

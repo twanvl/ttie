@@ -7,7 +7,6 @@ module Eval where
 import Prelude ()
 import Util.MyPrelude
 import Util.Pretty
-import qualified Util.Tagged.Map as TM
 import Syntax
 import Substitution
 import Names
@@ -54,45 +53,6 @@ evalProj :: EvalStrategy -> Arg Proj -> Exp -> TcM Exp
 evalProj s (Arg _ Proj1) (Pair x _y _) = evalMore s (argValue x)
 evalProj s (Arg _ Proj2) (Pair _x y _) = evalMore s y
 evalProj _ p x = pure $ Proj p x
-
---------------------------------------------------------------------------------
--- Expand metas in expressions
---------------------------------------------------------------------------------
-
--- Evaluate metas at the top
-evalMetas :: Exp -> TcM Exp
-evalMetas x@(Meta mv args) = do
-  x' <- metaValue mv args
-  case x' of
-    Nothing  -> pure x
-    Just x'' -> evalMetas x''
-evalMetas x = pure x
-
--- Evaluate all metas, give an error for unresolved ones
-evalAllMetas :: Exp -> TcM Exp
-evalAllMetas (Meta mv args) = do
-  x' <- metaValue mv args
-  case x' of
-    Nothing  -> --throwError =<< text "Unresolved meta" --
-                Meta mv <$> traverse evalAllMetas args
-    Just x'' -> evalAllMetas x''
-evalAllMetas (Set i) = Set <$> evalLevel i
-evalAllMetas x = traverseChildren evalAllMetas x
-
---------------------------------------------------------------------------------
--- Expand metas in levels
---------------------------------------------------------------------------------
-
-evalLevel :: Level -> TcM Level
-evalLevel x@(IntLevel _) = pure x
-evalLevel (Level i j) = foldr maxLevel (intLevel i) <$> mapM evalLevelVar (TM.toList j)
-
-evalLevelVar :: (LevelMetaVar, Int) -> TcM Level
-evalLevelVar (mv,add) = do
-  l <- getLevelMetaVar mv
-  case l of
-    Nothing -> return $ addLevel add (metaLevel mv)
-    Just l' -> addLevel add <$> evalLevel l'
 
 --------------------------------------------------------------------------------
 -- Evaluation in all possible locations
