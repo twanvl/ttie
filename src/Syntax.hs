@@ -469,8 +469,11 @@ parseDecls = withIndentation (many $ parseDecl0) <* tokWS <* eof
 -- Testing
 --------------------------------------------------------------------------------
 
+parseExpTop :: Parser Exp
+parseExpTop = (tokWS *> parseExp 0 <* eof)
+
 pe :: String -> Exp
-pe = testParser (tokWS *> parseExp 0 <* eof)
+pe = testParser parseExpTop
 pd :: String -> [Decl]
 pd = testParser parseDecls
 

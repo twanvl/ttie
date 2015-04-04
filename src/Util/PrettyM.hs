@@ -92,8 +92,11 @@ class Applicative m => Pretty m a where
   default ppr :: Show a => Int -> a -> m Doc
   ppr p x = text (showsPrec p x "")
 
+ppr' :: Pretty Identity a => a -> Doc
+ppr' = runIdentity . ppr 0
+
 pretty :: Pretty Identity a => a -> String
-pretty = showDoc . runIdentity . ppr 0
+pretty = showDoc . ppr'
 
 instance Applicative m => Pretty m String where
   ppr _ = text

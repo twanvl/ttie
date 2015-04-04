@@ -15,25 +15,27 @@ import Substitution
 import Syntax
 
 import qualified Data.Sequence as Seq
+import qualified Data.Map as Map
 
 --------------------------------------------------------------------------------
 -- Typechecking/evaluation context
 --------------------------------------------------------------------------------
 
 -- types for all free variables
-data Ctx = Ctx
-  { ctxVarType :: Seq (Named Exp) -- name and type of bound variables
-  --, ctxFreeValue  :: Map Name Decl -- 
+data TcCtx = TcCtx
+  { ctxVarType  :: Seq (Named Exp) -- name and type of bound variables
+  , ctxFreeType :: Map Name Exp -- types of free values
   --, ctxUsedNames  :: Set String    -- all names of bound variables
   }
 
-emptyCtx :: Ctx
-emptyCtx = Ctx
+emptyCtx :: TcCtx
+emptyCtx = TcCtx
   { ctxVarType = Seq.empty
+  , ctxFreeType = Map.empty
   }
 
-pushCtx :: Named Exp -> Ctx -> Ctx
-pushCtx typ ctx = Ctx
+pushCtx :: Named Exp -> TcCtx -> TcCtx
+pushCtx typ ctx = ctx
   { ctxVarType   = typ <| ctxVarType ctx
   }
 
@@ -70,7 +72,7 @@ modifyUsLevelMetas f us = us { usLevelMetas = f (usLevelMetas us) }
 -- Monad
 --------------------------------------------------------------------------------
 
-newtype TcM a = TcM { unTcM :: ReaderT Ctx (ExceptT Doc (State UnificationState)) a }
+newtype TcM a = TcM { unTcM :: ReaderT TcCtx (ExceptT Doc (State UnificationState)) a }
   deriving (Functor, Applicative, Monad, MonadError Doc)
 
 instance MonadBound Exp TcM where
@@ -84,15 +86,15 @@ instance MonadBoundNames TcM where
 instance MonadBoundTypes Exp TcM where
   boundTypes = TcM $ asks ctxVarType
 
-runTcM :: TcM a -> Either Doc a
-runTcM = flip evalState emptyUS . runExceptT . flip runReaderT emptyCtx . unTcM
+runTcM :: TcCtx -> TcM a -> Either Doc a
+runTcM ctx = flip evalState emptyUS . runExceptT . flip runReaderT ctx . unTcM
 
-testTcM :: TcM a -> a
-testTcM x = case runTcM x of
+testTcM :: EvalAllMetas a => TcM a -> a
+testTcM x = case runTcM emptyCtx (x >>= evalAllMetas) of
   Left e -> error (show e)
   Right y -> y
 
-testTcM' :: TcM a -> (a,Doc)
+testTcM' :: EvalAllMetas a => TcM a -> (a,Doc)
 testTcM' x = testTcM ((,) <$> x <*> dumpMetas)
 
 -- | Replace the context of bound variables
@@ -112,7 +114,11 @@ boundType i = do
     else throwError =<< text "Variable not bound:" <+> int i
 
 freeType :: Name -> TcM Exp
-freeType n = throwError =<< text "Free variable has no type:" <+> text n
+freeType n = do
+  mty <- TcM $ asks $ Map.lookup n . ctxFreeType
+  case mty of
+    Nothing -> throwError =<< text "Free variable has no type:" <+> text n
+    Just ty -> return ty
 
 --------------------------------------------------------------------------------
 -- Error utilities
@@ -131,7 +137,16 @@ annError x y = catchError x $ \err -> do
   ann <- catchError y (const $ throwError err)
   throwError =<< pure err $$ pure ann
 
-tcPpr :: Int -> Exp -> TcM Doc
+class EvalAllMetas a where
+  evalAllMetas :: a -> TcM a
+instance (EvalAllMetas a, EvalAllMetas b) => EvalAllMetas (a,b) where
+  evalAllMetas = traversePair evalAllMetas evalAllMetas
+instance EvalAllMetas Doc where
+  evalAllMetas = pure
+instance EvalAllMetas () where
+  evalAllMetas = pure
+
+tcPpr :: (EvalAllMetas a, Pretty TcM a) => Int -> a -> TcM Doc
 tcPpr i x = ppr i =<< evalAllMetas x
 
 pprMeta :: MetaVar -> MetaValue -> TcM Doc
@@ -230,15 +245,18 @@ evalMetas x@(Meta mv args) = do
 evalMetas x = pure x
 
 -- Evaluate all metas, give an error for unresolved ones
-evalAllMetas :: Exp -> TcM Exp
-evalAllMetas (Meta mv args) = do
+evalAllExpMetas :: Exp -> TcM Exp
+evalAllExpMetas (Meta mv args) = do
   x' <- metaValue mv args
   case x' of
     Nothing  -> --throwError =<< text "Unresolved meta" --
                 Meta mv <$> traverse evalAllMetas args
     Just x'' -> evalAllMetas x''
-evalAllMetas (Set i) = Set <$> evalLevel i
-evalAllMetas x = traverseChildren evalAllMetas x
+evalAllExpMetas (Set i) = Set <$> evalLevel i
+evalAllExpMetas x = traverseChildren evalAllExpMetas x
+
+instance EvalAllMetas Exp where
+  evalAllMetas = evalAllExpMetas
 
 --------------------------------------------------------------------------------
 -- Expand metas in levels
@@ -254,4 +272,7 @@ evalLevelVar (mv,add) = do
   case l of
     Nothing -> return $ addLevel add (metaLevel mv)
     Just l' -> addLevel add <$> evalLevel l'
+
+instance EvalAllMetas Level where
+  evalAllMetas = evalLevel
 
