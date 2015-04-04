@@ -278,10 +278,10 @@ tc Nothing (Lam (Arg h x) (Bound n y)) = do
   (x',_) <- tcType x
   (y',t) <- localBound (named n x') (tc Nothing y)
   return (Lam (Arg h x') (Bound n y'), Pi (Arg h x') (Bound n t))
-tc Nothing (Binder b (Arg h x) (Bound n y)) = do -- Pi or Sigma
+tc Nothing (Binder b (Arg h x) y) = do -- Pi or Sigma
   (x',lx) <- tcType x
-  (y',ly) <- localBound (named n x') (tcType y)
-  return (Binder b (Arg h x') (Bound n y'), Set (maxLevel lx ly))
+  (y',ly) <- tcBoundType x' y
+  return (Binder b (Arg h x') y', Set (maxLevel lx ly))
 tc Nothing (Pair (Arg h x) y Blank) = do
   -- assume non-dependent pair
   (x',tx) <- tc Nothing x
@@ -297,6 +297,19 @@ tc mty (Pair (Arg h x) y ty) = do
   (x',_) <- tc (Just ty1) x
   (y',_) <- tc (Just $ substBound ty2 x') y
   return (Pair (Arg h x') y' ty'', ty'')
+tc Nothing (Eq x y z) = do
+  (x',l) <- tcBoundType Interval x
+  (y',_) <- tc (Just $ substBound x' I1) y
+  (z',_) <- tc (Just $ substBound x' I2) z
+  return (Eq x' y' z', Set l)
+tc Nothing (Refl (Bound n x)) = do
+  (x',t) <- localBound (named n Interval) $ tc Nothing x
+  return (Refl (Bound n x'), Eq (Bound n t) (subst1 I1 x') (subst1 I2 x'))
+tc Nothing Interval = return (Interval, Set zeroLevel)
+tc Nothing I1  = return (I1, Interval)
+tc Nothing I2  = return (I2, Interval)
+tc Nothing I12 = return (I12, Eq (notBound Interval) I1 I2)
+tc Nothing I21 = return (I21, Eq (notBound Interval) I2 I1)
 tc Nothing (Meta x args) = do
   val <- metaValue x args
   case val of
@@ -317,4 +330,9 @@ tcType x = do
   (x',l) <- tc Nothing x
   l' <- unifySet l
   return (x',l')
+
+tcBoundType :: Exp -> Bound Exp -> TcM (Bound Exp, Level)
+tcBoundType x (Bound n y) = do
+  (y',l) <- localBound (named n x) $ tcType y
+  return (Bound n y', l)
 

@@ -61,6 +61,8 @@ goodExpressions =
   ,"(\\{u} x -> x) : {A : Set} -> (A -> A)"
   ,"(\\{A} {B} f x -> f x) : {A B : Set} -> (A -> B) -> (A -> B)"
   ,"(\\{A} {B} {C} f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
+  ,"refl (x,x)"
+  ,"i12"
   --,"(\\f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
   ]
 

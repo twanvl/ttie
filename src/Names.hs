@@ -54,11 +54,6 @@ data Bound a = Bound
 instance Eq a => Eq (Bound a) where
   a == b = boundBody a == boundBody b
 
-{-
-traverseBound :: Functor f => (Int -> a -> f b) -> Int -> Bound a -> f (Bound b)
-traverseBound f l (Bound n x) = Bound n <$> f (l+1) x
--}
-
 --------------------------------------------------------------------------------
 -- Helper type: named things
 --------------------------------------------------------------------------------
@@ -203,12 +198,4 @@ instance Pretty m a => Pretty m (Bound a) where
 instance Pretty m a => Pretty m (Arg a) where
   ppr p (Arg Visible a) = ppr p a
   ppr _ (Arg Hidden  a) = braces $ ppr 0 a
-
---------------------------------------------------------------------------------
--- Parsing
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
--- Testing
---------------------------------------------------------------------------------
 

@@ -95,7 +95,7 @@ tokAQName = P.try (P.char '$' *> tokAnyName <* tokNameEnd) <* tokWS
 isReservedName :: String -> Bool
 isReservedName ('p':'r':'o':'j':(x:xs)) = all (`elem`"12") (x:xs)
 isReservedName xs = xs `elem`
-  ["_","Pi","Sigma","W","Top","Bot","Set","Type","Fin"
+  ["_","Pi","Sigma","W","Top","Bot","Set","Type","Fin","Eq","refl","Interval","i1","i2","i12","i21"
   ,"forall","exists","proj1","proj2"
   ,"->",":",",","\\","\\/","=","of"
   ,"×","→","⇒","∀","Π","Σ","≡"]
@@ -107,7 +107,7 @@ tokReservedName n = indented *> P.try (P.string n *> tokNameEnd) *> tokWS
 tokReservedOp :: String -> Parser ()
 tokReservedOp n = indented *> P.try (P.string n) *> tokWS
 
-tokLParen, tokRParen, tokLBracket, tokRBracket, tokLBrace, tokRBrace, tokColon, tokSemi, tokComma, tokEquals, tokArrow, tokThickArrow, tokProduct, tokForall, tokExists, tokPi, tokSigma, tokEq, tokRefl, tokLambda, tokBlank, tokCase, tokOf, tokEval, tokPostulate, tokDollar, tokDot, tokUnderscore :: Parser ()
+tokLParen, tokRParen, tokLBracket, tokRBracket, tokLBrace, tokRBrace, tokColon, tokSemi, tokComma, tokEquals, tokArrow, tokThickArrow, tokProduct, tokForall, tokExists, tokPi, tokSigma, tokLambda, tokBlank, tokCase, tokOf, tokEval, tokPostulate, tokDollar, tokDot, tokUnderscore :: Parser ()
 tokLParen = tokReservedOp "("
 tokRParen = tokReservedOp ")"
 tokLBracket = tokReservedOp "["
@@ -126,8 +126,6 @@ tokForall = tokReservedName "forall" <|> tokReservedOp "\\/" <|> tokReservedOp "
 tokExists = tokReservedName "exists" <|> tokReservedOp "∃"
 tokPi = tokReservedName "Pi" <|> tokReservedOp "Π"
 tokSigma = tokReservedName "Sigma" <|> tokReservedOp "Σ"
-tokEq = tokReservedName "Eq"
-tokRefl = tokReservedName "refl"
 tokBlank = tokReservedName "_"
 tokCase = tokReservedName "case"
 tokOf = tokReservedName "of"
@@ -139,6 +137,12 @@ tokUnderscore = tokReservedName "_"
 
 tokType :: Parser Int
 tokType = indented *> P.try ((P.string "Type" <|> P.string "Set") *> (tokIntPart <|> return 0) <* tokNameEnd) <* tokWS
+
+tokEq :: Parser String
+tokEq = indented *> P.try (P.string "Eq" *> (tokNameEnd *> return "" <|> P.string "_" *> tokAnyName)) <* tokWS
+
+tokRefl :: Parser String
+tokRefl = indented *> P.try (P.string "refl" *> (tokNameEnd *> return "" <|> P.string "_" *> tokAnyName)) <* tokWS
 
 tokFin :: Parser Int
 tokFin = indented *> P.try (P.string "Fin" *> tokIntPart <* tokNameEnd) <* tokWS
