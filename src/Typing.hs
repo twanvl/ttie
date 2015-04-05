@@ -179,10 +179,18 @@ unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*
 unify' (Binder b (Arg h x) y) (Binder b' (Arg h' x') y') | b == b' && h == h' = do
   x'' <- unify x x'
   Binder b (Arg h x'') <$> unifyBound x'' y y'
-unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify' y y' <*> unify' z z'
+unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify y y' <*> unify z z'
 unify' (Meta x args) y = unifyMeta id   x args y
 unify' y (Meta x args) = unifyMeta flip x args y
 unify' x y | x == y = return x
+unify' (Pair (Arg h x) y z) (Pair (Arg h' x') y' z') | h == h' =
+  Pair <$> (Arg h <$> unify x x') <*> unify y y' <*> unify z z'
+-- eta expansion and surjective pairing?
+{-
+unify' (Pair (Arg h x) y z) x' =
+  Pair <$> (Arg h <$> unify x (Proj (Arg h Proj1) x')) <*> unify y (Proj (Arg h Proj2) x') <*> pure z
+-}
+
 unify' x y = do
   tcError =<< text "Failed to unify" <+> ppr 11 x <+> text "with" <+> ppr 11 y
 

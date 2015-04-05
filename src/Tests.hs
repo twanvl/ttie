@@ -139,15 +139,28 @@ testExp xStr = do
     assertEqual "parse.ppr not identity" x x'
   -- we should be able to infer its type
   (x',ty) <- testPart "Type inference" $
-    showError $ runTcM testCtx $ evalAllMetas =<< tc Nothing x
+    myTestTcM $ tc Nothing x
   -- and the modified expression should yield the same type
   testPart "Type inference of expanded expression" $ do
-    xty' <- showError $ runTcM testCtx $ evalAllMetas =<< tc Nothing x'
+    xty' <- myTestTcM $ tc Nothing x'
     assertEqual "Should be equal" (x',ty) xty'
   -- and we should also be able to typecheck it
   testPart "Type checking" $ do
-    xty' <- showError $ runTcM testCtx $ evalAllMetas =<< tc (Just ty) x'
+    xty' <- myTestTcM $ tc (Just ty) x'
     assertEqual "Should be equal" (x',ty) xty'
+  -- evaluation (to normal form) should preserve typing
+  xnf <- testPart "Evaluation typing" $ do
+    xnf <- myTestTcM $ eval NF x'
+    (_,ty') <- myTestTcM $ tc (Just ty) xnf
+    -- ty and ty' should have the same normal form (we already know that they unify)
+    tyNf <- myTestTcM $ eval NF ty
+    ty'Nf <- myTestTcM $ eval NF ty'
+    assertEqual "Should have same type in normal form" tyNf ty'Nf
+    return xnf
+  -- eval NF should also give a normal form
+  testPart "Normal form" $ do
+    xnf' <- myTestTcM $ eval NF xnf
+    assertEqual "eval NF should give normal form" xnf xnf'
   -- all the ways to evaluate x to normal form should give the same result
   testPart "Evaluation" $ do
     return ()
