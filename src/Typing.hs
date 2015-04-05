@@ -239,8 +239,7 @@ unifyEq xy = do
 --   unify (Pi Hidden x y) (Pi Visible _ _)
 --   unify (Si Hidden x y) _
 
--- Apply x of type ty to all expected hidden arguments.
--- But only if hiding=Visible
+-- Apply x of type ty to all expected hidden arguments if hiding=Visible
 applyHidden :: Hiding -> Exp -> Exp -> TcM (Exp,Exp)
 applyHidden Visible x ty = applyHidden' x =<< eval WHNF ty
 applyHidden Hidden  x ty = return (x,ty)
@@ -255,11 +254,21 @@ applyHidden' x (Si (Arg Hidden _) v) = do
   let x'  = Proj (hidden Proj2) x
   let ty' = substBound v (Proj (hidden Proj1) x)
   applyHidden' x' =<< eval WHNF ty'
-applyHidden' x ty = pure (x,ty)
+applyHidden' x ty = return (x,ty)
 
+-- Ensure that x of type ty takes enough hidden arguments
 {-
--- Ensure that x of type ty 
-wrapHidden
+wrapHidden :: Hiding -> Exp -> Exp -> TcM (Exp,Exp)
+wrapHidden Visible x ty = wrapHidden' x =<< eval WHNF ty
+wrapHidden Hidden  x ty = return (x,ty)
+
+wrapHidden' :: Exp -> Exp -> TcM (Exp,Exp)
+wrapHidden' x (Pi (Arg Hidden u) v) = do
+  Lam (Arg Hidden u)
+  let x'  = App x (hidden arg)
+  let ty' = substBound v arg
+  (x' <- wrapHidden' x' =<< eval WHNF v
+wrapHidden' x ty = pure (x,ty)
 -}
 
 --------------------------------------------------------------------------------
@@ -302,6 +311,12 @@ tc Nothing (App x (Arg h y)) = do
 tc Nothing (TypeSig x y) = do
   (y',_l) <- tcType y
   tc (Just y') x
+tc (Just (Pi (Arg Hidden x) (Bound n y))) z@(Lam (Arg Visible _) _) = do
+  -- wrap in \{_} -> ..
+  (z',y') <- localBound (named n x) $ do
+    y' <- eval WHNF y
+    tc (Just y') (raiseBy 1 z)
+  return (Lam (Arg Hidden x) (Bound n z'), Pi (Arg Hidden x) (Bound n y'))
 tc Nothing (Lam (Arg h x) (Bound n y)) = do
   (x',_) <- tcType x
   (y',t) <- localBound (named n x') (tc Nothing y)
