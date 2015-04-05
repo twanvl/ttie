@@ -39,9 +39,9 @@ data Exp
   | Proj (Arg Proj) Exp
   | Pair (Arg Exp) Exp Exp -- (x , y) : t
   -- unit type
-  -- | UnitTy | UnitVal
+  | UnitTy | UnitVal
   -- sum types
-  -- | SumTy [Name] | SumVal Name [Name]
+  -- | SumTy [(Name,Exp)] | SumVal Name Exp Exp | SumElim [(Name,Exp)] Exp
   -- equality
   | Eq   (Bound Exp) Exp Exp
   | Refl (Bound Exp)
@@ -151,6 +151,8 @@ instance TraverseChildren Exp Exp where
   traverseChildren f (App x y) = App <$> f x <*> traverse f y
   traverseChildren f (Proj x y) = Proj x <$> f y
   traverseChildren f (Pair x y z) = Pair <$> traverse f x <*> f y <*> f z
+  traverseChildren _ UnitTy = pure UnitTy
+  traverseChildren _ UnitVal = pure UnitVal
   traverseChildren f (Eq x y z) = Eq <$> traverseBound Interval f x <*> f y <*> f z
   traverseChildren f (Refl x) = Refl <$> traverseBound Interval f x
   traverseChildren _ Interval = pure Interval
@@ -275,6 +277,8 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
     SiB  -> group $ parenAlignIf (p > 2) $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
     LamB -> group $ parenAlignIf (p > 1) $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')
     where (a',b') = namedBound a (renameForPrinting b)
+  ppr _ (UnitTy)  = text "Unit"
+  ppr _ (UnitVal) = text "tt"
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
   ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
@@ -343,7 +347,8 @@ parseExpPrim p
   <|> Proj (visible Proj2) <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
   <|> Proj (hidden  Proj1) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj1" <* tokRBrace) <*> parseExp 11
   <|> Proj (hidden  Proj2) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj2" <* tokRBrace) <*> parseExp 11
-  -- <|> Refl <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
+  <|> UnitTy <$ tokReservedName "Unit"
+  <|> UnitVal <$ tokReservedName "tt"
   <|> Interval <$ tokReservedName "Interval"
   <|> I1 <$ tokReservedName "i1"
   <|> I2 <$ tokReservedName "i2"

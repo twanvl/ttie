@@ -42,6 +42,9 @@ testNames = Map.fromList
   ,("zero", pe "Nat")
   ,("suc", pe "Nat -> Nat")
   ]
+  -- "Nat", pe "Set", pe "x:data{zero;suc} * case x of {zero -> data{unit}; suc -> Nat}"
+  -- "Nat", pe "Set", pe "data{zero:Unit;suc:Nat}"
+  -- "zero", , pe "con{zero}"
 
 testCtx :: TcCtx
 testCtx = emptyCtx
@@ -79,6 +82,7 @@ goodExpressions =
   ,"(refl f') {_} {_} (refl x)"
   ,"(refl f') xy"
   ,"proj2 ({x} , x , f) x"
+  ,"(\\x y -> tt) : (x y : Unit) -> Eq _ x y"
   --,"Eq_i ((u:A i) -> B i u) x y"
   ]
 

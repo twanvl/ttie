@@ -87,6 +87,7 @@ evalEq s [qq| [$i] Pi (Arg $h a) ([$n] b) |] y z = do
          Pi (%hidden a[i=I2]) [$n2](
          Pi (Arg $h (Eq [$i]a[i=i] n1 n2)) [$n](
          Eq [$i]b[i=i,n=IV n1 n2 n i] (App y[] (Arg $h n1)) (App z[] (Arg $h n2))))) |]
+evalEq _ [qq| [$_i] UnitTy |] _ _ = pure UnitTy
 evalEq _ x y z = pure $ Eq x y z
 
 --------------------------------------------------------------------------------

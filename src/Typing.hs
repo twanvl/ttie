@@ -129,8 +129,8 @@ unifyMeta' _swapped mv args y = do
   my' <- withMetaContext mv $ unsubst args y
   case my' of
     Nothing -> tcError =<< text "Variables not in scope of meta"
-                           $$ indent 2 (ppr 0 (Meta mv args))
-                           $$ indent 2 (ppr 0 y)
+                           $$ indent 2 (tcPpr 0 (Meta mv args))
+                           $$ indent 2 (tcPpr 0 y)
     Just y' -> do
       modifyMetaVar mv $ \val -> val { mvValue = Just y' }
       return y
@@ -152,7 +152,7 @@ unifyLevels' x y | x == y = pure x
 unifyLevels' (MetaLevel x) y = unifyLevelMeta id   x y
 unifyLevels' x (MetaLevel y) = unifyLevelMeta flip y x
 unifyLevels' x y = do
-  tcError =<< text "Failed to unify" <+> ppr 11 (Set x) <+> text "with" <+> ppr 11 (Set y)
+  tcError =<< text "Failed to unify" <+> tcPpr 11 (Set x) <+> text "with" <+> tcPpr 11 (Set y)
 
 -- | Unify two expressions.
 -- requires that the expressions have the same type
@@ -165,7 +165,7 @@ unify x y =
     y' <- eval WHNF y
     if x /= x' || y /= y'
       then unify' x' y' `catchError` \_ -> throwError err
-      else throwError =<< pure err $$ text "When unifying" <+> ppr 11 x <+> text "with" <+> ppr 11 y
+      else throwError =<< pure err $$ text "When unifying" <+> tcPpr 11 x <+> text "with" <+> tcPpr 11 y
 
 -- | Unify two expressions that are in WHNF (or that we assume to have equal heads).
 -- The left is the 'actual' type (of an argument e.g.),
@@ -192,7 +192,7 @@ unify' (Pair (Arg h x) y z) x' =
 -}
 
 unify' x y = do
-  tcError =<< text "Failed to unify" <+> ppr 11 x <+> text "with" <+> ppr 11 y
+  tcError =<< text "Failed to unify" <+> tcPpr 11 x <+> text "with" <+> tcPpr 11 y
 
 unifyName :: Name -> Name -> Name
 unifyName "" n = n
@@ -348,6 +348,8 @@ tc Nothing (Eq x y z) = do
 tc Nothing (Refl (Bound n x)) = do
   (x',t) <- localBound (named n Interval) $ tc Nothing x
   return (Refl (Bound n x'), Eq (Bound n t) (subst1 I1 x') (subst1 I2 x'))
+tc Nothing UnitTy = return (UnitTy, Set zeroLevel)
+tc Nothing UnitVal = return (UnitVal, UnitTy)
 tc Nothing Interval = return (Interval, Set zeroLevel)
 tc Nothing I1  = return (I1, Interval)
 tc Nothing I2  = return (I2, Interval)
