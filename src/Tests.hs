@@ -34,8 +34,10 @@ testNames :: Map Name Exp
 testNames = Map.fromList
   [("A", pe "Set")
   ,("B", pe "Set")
-  ,("x", pe "A"),("y", pe "A")
+  ,("x", pe "A"),("y", pe "A"),("xy", pe "Eq A x y")
   ,("f", pe "A -> B")
+  ,("B'", pe "A -> Set")
+  ,("f'", pe "(x:A) -> B' x")
   ,("Nat", pe "Set")
   ,("zero", pe "Nat")
   ,("suc", pe "Nat -> Nat")
@@ -67,6 +69,8 @@ goodExpressions =
   --,"(\\f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
   ,"proj1 (refl (x,y))"
   ,"(refl f) {_} {_} (refl x)"
+  ,"(refl f') {_} {_} (refl x)"
+  ,"(refl f') {_} {_} xy"
   --,"Eq_i ((u:A i) -> B i u) x y"
   ]
 
@@ -164,7 +168,10 @@ testExp xStr = do
   -- all the ways to evaluate x to normal form should give the same result
   testPart "Evaluation" $ do
     return ()
-  return ""
+  -- return some info
+  --return ""
+  tyNf <- myTestTcM $ eval NF ty
+  return $ show tyNf
 
 testBadExp :: String -> Either String ()
 testBadExp xStr = do
