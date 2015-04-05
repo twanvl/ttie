@@ -65,6 +65,9 @@ goodExpressions =
   ,"i12"
   ,"refl_i (\\(x:(refl Nat)^i) -> x)"
   --,"(\\f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
+  ,"proj1 (refl (x,y))"
+  ,"(refl f) {_} {_} (refl x)"
+  --,"Eq_i ((u:A i) -> B i u) x y"
   ]
 
 -- expressions that shouldn't typecheck
@@ -74,6 +77,8 @@ badExpressions =
   ,"f (f x)"
   ,"notInScope"
   ,"\\x. x"
+  ,"(refl f) x"
+  ,"f (refl x)"
   ]
 
 --------------------------------------------------------------------------------

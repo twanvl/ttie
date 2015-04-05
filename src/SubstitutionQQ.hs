@@ -40,12 +40,15 @@ import Language.Haskell.TH.Syntax as TH
 --   [x1]..[xn] z  = z[x1,...,xn] = z[x1=x1,...,xn=xn]
 --   [x1]..[xn] z[y1=u1,yn=un] = raiseSubst n (reverse [u1,..,un])
 
--- More sugar (TODO):
+-- More sugar:
 --   [$x] y = Bound $x [x]y
+--   [%x:t] y = sequenceBound t (Bound $x [x]y)
+--   %x y z = x y z
+--   x `F` y     =  F x y
+-- More sugar (TODO):
 --   (x:a) -> b  =  Pi  a [x]b
 --   (x:a) *  b  =  Si  a [x]b
 --   (x:a) => b  =  Lam a [x]b
---   x `F` y     =  F x y
 
 --------------------------------------------------------------------------------
 -- Syntax and parsing
@@ -57,16 +60,20 @@ type VarName = String
 type BoundName = String
 data GenBind 
   = Con  ConName [GenBind]
+  | Fun  Name    [GenBind]
   | Var  [BoundName] Bool VarName (Maybe [(BoundName,GenBind)])
   deriving (Show)
 
 bind :: BoundName -> GenBind -> GenBind
 bind b (Con x xs) = Con x (map (bind b) xs)
+bind b (Fun x xs) = Fun x (map (bind b) xs)
 bind b (Var bs True  x xs) = Var (b:bs) True  x (fmap (map (second (bind b))) xs)
 bind b (Var bs False x xs) = Var bs     False x (fmap (map (second (bind b))) xs)
 
 bindBound :: BoundName -> GenBind -> GenBind
 bindBound n x = Con (mkName "Bound") [Var [] False n Nothing, bind n x]
+bindSequence :: BoundName -> GenBind -> GenBind -> GenBind
+bindSequence n t x = Fun (mkName "sequenceBound") [t,bindBound n x]
 
 isBoundVar :: GenBind -> Maybe Int
 isBoundVar (Var bs _ x Nothing) = findIndex (==x) (reverse bs)
@@ -93,16 +100,17 @@ parseGenBindSimple :: Int -> Parser GenBind
 parseGenBindSimple p
   =   tokLParen *> parseGenBind 0 <* tokRParen
   <|> (Con . mkName) <$> tokUpperName <*>
-      (if p <= 0
-       then many (parseGenBind 11)
-       else return [])
-  <|> tokLBracket *> (bindBound <$ tokDollar <*> tokName <|> bind <$> tokName)
-                   <* tokRBracket <*> parseGenBind p
-  <|> bind <$ tokLBracket <*> tokName <* tokRBracket <*> parseGenBind p
+      (guard (p <= 10) *> many (parseGenBind 11) <|> return [])
+  <|> (Fun . mkName) <$ tokReservedOp "%" <*> tokName <*>
+      (guard (p <= 10) *> many (parseGenBind 11) <|> return [])
+  <|> tokLBracket *> (bindBound <$ tokDollar <*> tokName
+                  <|> bindSequence <$ tokReservedOp "%" <*> tokName <* tokColon <*> parseGenBindSimple 0
+                  <|> bind <$> tokName)
+                  <* tokRBracket <*> parseGenBind p
   <|> Var [] <$> (False <$ tokDollar <|> pure True)
-             <*> tokLowerName <*>
+             <*> tokLowerNameNoWS <*>
       (Just <$ tokLBracket <*> (P.sepBy parseSubst tokComma) <* tokRBracket <|>
-       pure Nothing)
+       Nothing <$ tokWS)
 
 parseSubst :: Parser (BoundName,GenBind)
 parseSubst = do
@@ -165,14 +173,13 @@ mkSubst' 0 [] x = x
 mkSubst' n [] x = [| raiseBy |] `appE` dataE n `appE` x
 mkSubst' n xs x = [| raiseSubsts |] `appE` dataE n `appE` (listE xs) `appE` x
 
-
 mkSubst :: Int -> [ExpQ] -> ExpQ -> ExpQ
 mkSubst n xs y
   | n > 0 && length xs > 0 = do
-     -- simplify the substitution: raiseSubst (n+1) [x1,x2,..,x{i-1},var i] = raiseSubst n [x1,x2,..,x{i-1}]
+     -- simplify the substitution: raiseSubst (n+1) [x1,x2,..,x{i-1},var n] = raiseSubst n [x1,x2,..,x{i-1}]
      -- testing whether last xs == var i requires that we evaluate the ExpQs to Exps
      lx  <- last xs
-     lx' <- appE [e|var|] (dataE (length xs - 1))
+     lx' <- appE [e|var|] (dataE (n - 1))
      if lx == lx'
       then mkSubst (n-1) (init xs) y
       else mkSubst' n xs y
@@ -181,6 +188,7 @@ mkSubst n xs y
 
 toPat :: GenBind -> PatQ
 toPat (Con x xs) = conP x (map toPat xs)
+toPat (Fun _ _) = error "Functions not supported in patterns"
 toPat (BoundVar i) = viewP [e|unVar|] (dataP (Just i))
 toPat (Var bs _ x Nothing) = foldr (\b -> viewP (wrapQ b)) (varP (mkName x)) bs
 toPat (Var _  _ _ (Just _)) = error "Can't handle substitution in patterns"
@@ -188,6 +196,7 @@ toPat (Var _  _ _ (Just _)) = error "Can't handle substitution in patterns"
 
 toExp :: GenBind -> ExpQ
 toExp (Con x xs) = foldl appE (conE x) (map toExp xs)
+toExp (Fun x xs) = foldl appE (varE x) (map toExp xs)
 toExp (BoundVar i) = appE [e|var|] (dataE i)
 toExp (Var bs bb x ss) = mkSubst (length bs) (map (toExp . snd) (reverse ss')) (unwrapped)
   where

@@ -24,6 +24,10 @@ nameVariants :: Name -> [String]
 nameVariants "" = ["x" ++ show i | i <- [1::Int ..]]
 nameVariants name = [name,name++"'",name++"''"] ++ [name ++ show i | i <- [1::Int ..]]
 
+nameVariant :: Name -> String -> String
+nameVariant "" x = "x" ++ x
+nameVariant name x = name ++ x
+
 -- A variant of the given name that does not appear in the set ns
 freshNameVariants :: Names -> Name -> [Name]
 freshNameVariants ns n = filter (`Set.notMember` ns) (nameVariants n)
@@ -34,7 +38,7 @@ freshNameVariant ns n = head $ freshNameVariants ns n
 -- Some names are infix
 infixNames :: [(Name,(Int,Int,Int))]
 infixNames =
-  [("_+_",(6,7,6)),("_*_",(7,8,7))
+  [("_+_",(6,7,6)) --,("_*_",(7,8,7))
   ,("_++_",(5,6,5))
   ,("_==_",(4,5,5)),("_<_",(4,5,5)),("_>_",(4,5,5)),("_<=_",(4,5,5)),("_>=_",(4,5,5))]
 
@@ -115,6 +119,9 @@ class Applicative f => MonadBound exp f where
 
   traverseBound :: exp -> (a -> f b) -> Bound a -> f (Bound b)
   traverseBound ty f (Bound n x) = Bound n <$> localBound (named n ty) (f x)
+
+  sequenceBound :: exp -> Bound (f a) -> f (Bound a)
+  sequenceBound ty = traverseBound ty id
 
   -- traverse a binder, using the old exp for type information
   traverseBinder :: (exp -> Bound c -> d) -> (exp -> f exp) -> (a -> f c) -> exp -> Bound a -> f d

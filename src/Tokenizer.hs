@@ -54,7 +54,7 @@ tokAnyName = (:) <$> P.satisfy isNameStart <*> P.many (P.satisfy isNameCont) <?>
 isNameStart, isNameCont :: Char -> Bool
 --isNameStart x = isAlpha x || (isSymbol x) || x `elem` "_'*"
 --isNameCont x = isAlphaNum x || (isSymbol x) || x `elem` "_'*"
-isNameStart x = isAlpha x || (isSymbol x && x `notElem` "<=>^`") || x `elem` "_'*"
+isNameStart x = isAlpha x || (isSymbol x && x `notElem` "<=>^`$") || x `elem` "_'*"
 isNameCont x = isAlphaNum x || (isSymbol x && x `notElem` "<=>^`") || x `elem` "_'*"
 
 -- a non-reserved name
@@ -69,12 +69,14 @@ tokName = P.try (do
  <?> "name")
 
 tokLowerName :: Parser String
-tokLowerName = P.try (do
+tokLowerName = tokLowerNameNoWS <* tokWS <?> "name"
+
+tokLowerNameNoWS :: Parser String
+tokLowerNameNoWS = P.try (do
   indented
   n <- (:) <$> P.satisfy isLower <*> P.many (P.satisfy isNameCont) <?> "name"
   when (isReservedName n) $ P.unexpected ("reserved name " ++ n)
   tokNameEnd
-  tokWS
   return n
  <?> "name")
 
@@ -82,7 +84,6 @@ tokUpperName :: Parser String
 tokUpperName = P.try (do
   indented
   n <- (:) <$> P.satisfy isUpper <*> P.many (P.satisfy isNameCont) <?> "name"
-  when (isReservedName n) $ P.unexpected ("reserved name " ++ n)
   tokNameEnd
   tokWS
   return n

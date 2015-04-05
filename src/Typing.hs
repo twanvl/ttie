@@ -179,6 +179,7 @@ unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*
 unify' (Binder b (Arg h x) y) (Binder b' (Arg h' x') y') | b == b' && h == h' = do
   x'' <- unify x x'
   Binder b (Arg h x'') <$> unifyBound x'' y y'
+unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify' y y' <*> unify' z z'
 unify' (Meta x args) y = unifyMeta id   x args y
 unify' y (Meta x args) = unifyMeta flip x args y
 unify' x y | x == y = return x

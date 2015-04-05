@@ -382,7 +382,10 @@ parseExp p = do
   go po =<< op x y
  where
   go pcur x
-      = do (op,po,pr) <- parseOp pcur p
+      = do guard $ pcur >= 10 && p <= 10
+           y <- tokLBrace *> parseExp 0 <* tokRBrace
+           go 10 (AppH x y)
+    <|> do (op,po,pr) <- parseOp pcur p
            y <- parseExp pr
            go po =<< op x y
     <|> return x
