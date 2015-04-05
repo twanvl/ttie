@@ -46,6 +46,7 @@ data Exp
   | Eq   (Bound Exp) Exp Exp
   | Refl (Bound Exp)
   | Interval | I1 | I2 | I12 | I21
+  | IV Exp Exp Exp Exp
   -- | Fw Exp Exp | Bw Exp Exp | FwBw Exp Exp | BwFw Exp Exp | Adj Exp Exp | Equiv Exp Exp Exp Exp Exp
   -- typing
   | TypeSig Exp Exp
@@ -157,6 +158,7 @@ instance TraverseChildren Exp Exp where
   traverseChildren _ I2 = pure I2
   traverseChildren _ I12 = pure I12
   traverseChildren _ I21 = pure I21
+  traverseChildren f (IV x y z w) = IV <$> f x <*> f y <*> f z <*> f w
   traverseChildren f (TypeSig x y) = TypeSig <$> f x <*> f y
   traverseChildren f (Meta    x y) = Meta x <$> traverse f y
   traverseChildren _ Blank    = pure $ Blank
@@ -275,10 +277,10 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
     where (a',b') = namedBound a (renameForPrinting b)
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
-  ppr _ (Eq x y z) = case renameForPrinting x of
+  ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
     Bound "" x' -> text "Eq"             <+> ppr 11 x' <+> ppr 11 y <+> ppr 11 z
     Bound n x'  -> text "Eq_" <.> text n <+> ppr 11 x' <+> ppr 11 y <+> ppr 11 z
-  ppr _ (Refl x) = case renameForPrinting x of
+  ppr p (Refl x) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
     Bound "" x' -> text "refl"             <+> ppr 11 x'
     Bound n x'  -> text "refl_" <.> text n <+> ppr 11 x'
   ppr _ Interval = text "Interval"
@@ -286,6 +288,7 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ I2 = text "i2"
   ppr _ I12 = text "i12"
   ppr _ I21 = text "i21"
+  ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
     | Seq.null args = ppr 0 i
@@ -346,6 +349,7 @@ parseExpPrim p
   <|> I2 <$ tokReservedName "i2"
   <|> I12 <$ tokReservedName "i12"
   <|> I21 <$ tokReservedName "i21"
+  <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Refl (capture n x)) <$ guard (p <= 10) <*> tokRefl <*> parseExp 11
   <|> (\n x -> Eq   (capture n x)) <$ guard (p <= 10) <*> tokEq <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> Free <$> parseNonOpName
@@ -369,11 +373,11 @@ parseMetaArgs
 parseExp :: Int -> Parser Exp
 parseExp p = do
   lhs <- parseExpPrim p
-  go 11 lhs
+  go 12 lhs
  <|> do
   -- "{x:a} -> b"
   x <- tokLBrace *> parseExp 0 <* tokRBrace
-  (op,po,pr) <- parseBinderOp Hidden 11 p
+  (op,po,pr) <- parseBinderOp Hidden 12 p
   y <- parseExp pr
   go po =<< op x y
  where
@@ -409,6 +413,10 @@ parseOp pcur pmin = (try $ do
   return ((\x y -> pure (TypeSig x y)), 1,0)
  <|>
   parseBinderOp Visible pcur pmin
+ <|> do
+  guard $ pcur >= 11 && pmin <= 11
+  tokHat
+  return ((\x y -> pure (IV Blank Blank x y)), 11, 12)
  <|> do
   guard $ pcur >= 10 && pmin <= 10
   return ((\x y -> pure (AppV x y)), 10, 11)

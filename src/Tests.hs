@@ -63,6 +63,7 @@ goodExpressions =
   ,"(\\{A} {B} {C} f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
   ,"refl (x,x)"
   ,"i12"
+  ,"refl_i (\\(x:(refl Nat)^i) -> x)"
   --,"(\\f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
   ]
 

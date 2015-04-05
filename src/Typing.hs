@@ -213,6 +213,18 @@ unifyBinder' b h xy = do
   Binder _ (Arg _ x') y' <- unify xy (Binder b (Arg h x) y)
   return (x',y')
 
+-- | Unify x with (Eq _ _ _)
+unifyEq :: Exp -> TcM (Bound Exp, Exp, Exp)
+unifyEq (Eq x y z) = return (x,y,z)
+unifyEq xy = do
+  x <- Bound "" <$> localBound (unnamed Interval) freshMetaSet
+  y <- freshMeta (substBound x I1)
+  z <- freshMeta (substBound x I2)
+  Eq x' y' z' <- unify xy (Eq x y z)
+  return (x',y',z')
+  
+
+
 -- To handle hidden arguments
 --   unify (Pi Hidden x y) (Set _)
 --   unify (Pi Hidden x y) (Pi Visible _ _)
@@ -310,6 +322,15 @@ tc Nothing I1  = return (I1, Interval)
 tc Nothing I2  = return (I2, Interval)
 tc Nothing I12 = return (I12, Eq (notBound Interval) I1 I2)
 tc Nothing I21 = return (I21, Eq (notBound Interval) I2 I1)
+tc Nothing (IV x y z w) = do
+  (w',_) <- tc (Just Interval) w
+  (z',t) <- tc Nothing z
+  (ta,t1,t2) <- unifyEq t
+  (x',_) <- tc (Just $ substBound ta I1) x
+  (y',_) <- tc (Just $ substBound ta I2) y
+  _ <- unify x' t1
+  _ <- unify y' t2
+  return (IV x' y' z' w', substBound ta w')
 tc Nothing (Meta x args) = do
   val <- metaValue x args
   case val of
