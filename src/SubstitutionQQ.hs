@@ -57,15 +57,19 @@ type VarName = String
 type BoundName = String
 data GenBind 
   = Con  ConName [GenBind]
-  | Var  [BoundName] VarName (Maybe [(BoundName,GenBind)])
+  | Var  [BoundName] Bool VarName (Maybe [(BoundName,GenBind)])
   deriving (Show)
 
 bind :: BoundName -> GenBind -> GenBind
 bind b (Con x xs) = Con x (map (bind b) xs)
-bind b (Var bs x xs) = Var (b:bs) x (fmap (map (second (bind b))) xs)
+bind b (Var bs True  x xs) = Var (b:bs) True  x (fmap (map (second (bind b))) xs)
+bind b (Var bs False x xs) = Var bs     False x (fmap (map (second (bind b))) xs)
+
+bindBound :: BoundName -> GenBind -> GenBind
+bindBound n x = Con (mkName "Bound") [Var [] False n Nothing, bind n x]
 
 isBoundVar :: GenBind -> Maybe Int
-isBoundVar (Var bs x Nothing) = findIndex (==x) (reverse bs)
+isBoundVar (Var bs _ x Nothing) = findIndex (==x) (reverse bs)
 isBoundVar _ = Nothing
 pattern BoundVar i <- (isBoundVar -> Just i)
 
@@ -74,24 +78,36 @@ pattern BoundVar i <- (isBoundVar -> Just i)
 --------------------------------------------------------------------------------
 
 parseGenBind :: Int -> Parser GenBind
-parseGenBind p
+parseGenBind p = do
+  x <- parseGenBindSimple p
+  go x
+  where
+  go x = (do
+      guard (p < 10)
+      n <- tokBacktick *> tokUpperName <* tokBacktick
+      y <- parseGenBindSimple 10
+      go (Con (mkName n) [x,y])
+    ) <|> return x
+
+parseGenBindSimple :: Int -> Parser GenBind
+parseGenBindSimple p
   =   tokLParen *> parseGenBind 0 <* tokRParen
   <|> (Con . mkName) <$> tokUpperName <*>
-      (if p == 0
-       then many (parseGenBind 1)
+      (if p <= 0
+       then many (parseGenBind 11)
        else return [])
+  <|> tokLBracket *> (bindBound <$ tokDollar <*> tokName <|> bind <$> tokName)
+                   <* tokRBracket <*> parseGenBind p
   <|> bind <$ tokLBracket <*> tokName <* tokRBracket <*> parseGenBind p
-  <|> (\n -> Var [] n) <$> tokLowerNameDollar <*>
+  <|> Var [] <$> (False <$ tokDollar <|> pure True)
+             <*> tokLowerName <*>
       (Just <$ tokLBracket <*> (P.sepBy parseSubst tokComma) <* tokRBracket <|>
        pure Nothing)
-
-tokLowerNameDollar :: Parser String
-tokLowerNameDollar = (('$':) <$ tokDollar <|> pure id) <*> tokLowerName
 
 parseSubst :: Parser (BoundName,GenBind)
 parseSubst = do
   n <- tokName
-  v <- tokEquals *> parseGenBind 0 <|> return (Var [] n Nothing)
+  v <- tokEquals *> parseGenBind 0 <|> return (Var [] True n Nothing)
   return (n,v)
 
 --------------------------------------------------------------------------------
@@ -165,20 +181,18 @@ mkSubst n xs y
 
 toPat :: GenBind -> PatQ
 toPat (Con x xs) = conP x (map toPat xs)
-toPat (Var _ ('$':x) xs) = toPat (Var [] x xs) -- ignore bindings for this variable
 toPat (BoundVar i) = viewP [e|unVar|] (dataP (Just i))
-toPat (Var bs x Nothing) = foldr (\b -> viewP (wrapQ b)) (varP (mkName x)) bs
-toPat (Var _ _ (Just _)) = error "Can't handle substitution in patterns"
+toPat (Var bs _ x Nothing) = foldr (\b -> viewP (wrapQ b)) (varP (mkName x)) bs
+toPat (Var _  _ _ (Just _)) = error "Can't handle substitution in patterns"
 
 
 toExp :: GenBind -> ExpQ
 toExp (Con x xs) = foldl appE (conE x) (map toExp xs)
-toExp (Var _ ('$':x) xs) = toExp (Var [] x xs) -- ignore bindings for this variable
 toExp (BoundVar i) = appE [e|var|] (dataE i)
-toExp (Var bs x ss) = mkSubst (length bs) (map (toExp . snd) (reverse ss')) (unwrapped)
+toExp (Var bs bb x ss) = mkSubst (length bs) (map (toExp . snd) (reverse ss')) (unwrapped)
   where
   -- if there is no substitution, then assume that all bound variables are to be substituted
-  ss' = fromMaybe (map (\n -> (n,Var bs n Nothing)) bs) ss
+  ss' = fromMaybe (map (\n -> (n,Var bs bb n Nothing)) bs) ss
   unwrapped = foldr (\(b,_) -> appE (unwrapQ b)) (varE (mkName x)) ss'
 
 {-

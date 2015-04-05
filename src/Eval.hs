@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE QuasiQuotes, ViewPatterns #-}
 module Eval where
 
 import Prelude ()
@@ -9,6 +10,7 @@ import Util.MyPrelude
 import Util.Pretty
 import Syntax
 import Substitution
+import SubstitutionQQ
 import Names
 import TcMonad
 
@@ -32,6 +34,7 @@ evalHere :: EvalStrategy -> Exp -> TcM Exp
 evalHere s (TypeSig x _ty) = evalMore s x
 evalHere s (App x y) = evalApp s x y
 evalHere s (Proj x y) = evalProj s x y
+evalHere s (IV x y z w) = evalIV s x y z w
 evalHere _ x = pure x
 
 evalMore :: EvalStrategy -> Exp -> TcM Exp
@@ -47,12 +50,23 @@ evalMeta s x xs = do
 
 evalApp :: EvalStrategy -> Exp -> Arg Exp -> TcM Exp
 evalApp s (Lam _ x) y = evalMore s $ substBound x (argValue y)
+--evalApp s (Refl x `AppH` y `AppH` z) (Arg h w) = Refl (App x (Arg h (IV)))
+evalApp _ [qq| Refl [$n]x `AppH` y `AppH` z|] (Arg h w) =
+  pure $ [qq| Refl [$n](App x (Arg $h (IV y[] z[] w[] n))) |]
 evalApp _ x y = pure $ App x y
 
 evalProj :: EvalStrategy -> Arg Proj -> Exp -> TcM Exp
 evalProj s (Arg _ Proj1) (Pair x _y _) = evalMore s (argValue x)
 evalProj s (Arg _ Proj2) (Pair _x y _) = evalMore s y
+evalProj s p (Refl x) = Refl <$> traverseBound Interval (evalProj s p) x
 evalProj _ p x = pure $ Proj p x
+
+evalIV :: EvalStrategy -> Exp -> Exp -> Exp -> Exp -> TcM Exp
+evalIV _ x _ _ I1 = pure x
+evalIV _ _ y _ I2 = pure y
+evalIV _ _ _ I12 w = pure w
+evalIV s _ _ (Refl z) w = evalMore s $ substBound z w
+evalIV _ x y z w  = pure $ IV x y z w
 
 --------------------------------------------------------------------------------
 -- Evaluation in all possible locations

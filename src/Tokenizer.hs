@@ -54,8 +54,8 @@ tokAnyName = (:) <$> P.satisfy isNameStart <*> P.many (P.satisfy isNameCont) <?>
 isNameStart, isNameCont :: Char -> Bool
 --isNameStart x = isAlpha x || (isSymbol x) || x `elem` "_'*"
 --isNameCont x = isAlphaNum x || (isSymbol x) || x `elem` "_'*"
-isNameStart x = isAlpha x || (isSymbol x && x `notElem` "<=>^") || x `elem` "_'*"
-isNameCont x = isAlphaNum x || (isSymbol x && x `notElem` "<=>^") || x `elem` "_'*"
+isNameStart x = isAlpha x || (isSymbol x && x `notElem` "<=>^`") || x `elem` "_'*"
+isNameCont x = isAlphaNum x || (isSymbol x && x `notElem` "<=>^`") || x `elem` "_'*"
 
 -- a non-reserved name
 tokName :: Parser String
@@ -107,7 +107,7 @@ tokReservedName n = indented *> P.try (P.string n *> tokNameEnd) *> tokWS
 tokReservedOp :: String -> Parser ()
 tokReservedOp n = indented *> P.try (P.string n) *> tokWS
 
-tokLParen, tokRParen, tokLBracket, tokRBracket, tokLBrace, tokRBrace, tokColon, tokSemi, tokComma, tokEquals, tokArrow, tokThickArrow, tokProduct, tokHat, tokForall, tokExists, tokPi, tokSigma, tokLambda, tokBlank, tokCase, tokOf, tokEval, tokPostulate, tokDollar, tokDot, tokUnderscore :: Parser ()
+tokLParen, tokRParen, tokLBracket, tokRBracket, tokLBrace, tokRBrace, tokColon, tokSemi, tokComma, tokEquals, tokArrow, tokThickArrow, tokProduct, tokHat, tokForall, tokExists, tokPi, tokSigma, tokLambda, tokBlank, tokCase, tokOf, tokEval, tokPostulate, tokDollar, tokDot, tokUnderscore, tokBacktick :: Parser ()
 tokLParen = tokReservedOp "("
 tokRParen = tokReservedOp ")"
 tokLBracket = tokReservedOp "["
@@ -135,6 +135,7 @@ tokPostulate = tokReservedName "postulate"
 tokDollar = tokReservedOp "$"
 tokDot = tokReservedOp "."
 tokUnderscore = tokReservedName "_"
+tokBacktick = tokReservedOp "`"
 
 tokType :: Parser Int
 tokType = indented *> P.try ((P.string "Type" <|> P.string "Set") *> (tokIntPart <|> return 0) <* tokNameEnd) <* tokWS
