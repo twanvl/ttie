@@ -48,6 +48,14 @@ testCtx = emptyCtx
   { ctxFreeType = testNames
   }
 
+testTcM :: EvalAllMetas a => TcM a -> a
+testTcM x = case runTcM testCtx (x >>= evalAllMetas) of
+  Left e -> error (show e)
+  Right y -> y
+
+testTcM' :: EvalAllMetas a => TcM a -> (a,Doc)
+testTcM' x = testTcM ((,) <$> x <*> dumpMetas)
+
 --------------------------------------------------------------------------------
 -- Expressions to test
 --------------------------------------------------------------------------------
@@ -68,9 +76,9 @@ goodExpressions =
   ,"refl_i (\\(x:(refl Nat)^i) -> x)"
   --,"(\\f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
   ,"proj1 (refl (x,y))"
-  ,"(refl f) {_} {_} (refl x)"
   ,"(refl f') {_} {_} (refl x)"
-  ,"(refl f') {_} {_} xy"
+  ,"(refl f') xy"
+  ,"proj2 ({x} , x , f) x"
   --,"Eq_i ((u:A i) -> B i u) x y"
   ]
 

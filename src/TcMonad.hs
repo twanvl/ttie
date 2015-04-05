@@ -89,14 +89,6 @@ instance MonadBoundTypes Exp TcM where
 runTcM :: TcCtx -> TcM a -> Either Doc a
 runTcM ctx = flip evalState emptyUS . runExceptT . flip runReaderT ctx . unTcM
 
-testTcM :: EvalAllMetas a => TcM a -> a
-testTcM x = case runTcM emptyCtx (x >>= evalAllMetas) of
-  Left e -> error (show e)
-  Right y -> y
-
-testTcM' :: EvalAllMetas a => TcM a -> (a,Doc)
-testTcM' x = testTcM ((,) <$> x <*> dumpMetas)
-
 -- | Replace the context of bound variables
 withCtx :: Seq (Named Exp) -> TcM a -> TcM a
 withCtx bound = TcM . local (\ctx -> ctx{ctxVarType = bound}) . unTcM

@@ -214,7 +214,7 @@ unifySet x = do
 
 -- | Unify x with (Binder b (Arg h _) _)
 unifyBinder, unifyBinder' :: Binder -> Hiding -> Exp -> TcM (Exp, Bound Exp)
-unifyBinder b h = unifyBinder' b h <=< evalMetas
+unifyBinder b h = unifyBinder' b h <=< eval WHNF
 unifyBinder' b h (Binder b' (Arg h' x) y) | b == b' && h == h' = return (x,y)
 unifyBinder' b h xy = do
   x <- freshMetaSet
@@ -240,17 +240,22 @@ unifyEq xy = do
 --   unify (Si Hidden x y) _
 
 -- Apply x of type ty to all expected hidden arguments.
-applyHidden :: Exp -> Exp -> TcM Exp
-applyHidden x (Pi (Arg Hidden u) v) = do
+-- But only if hiding=Visible
+applyHidden :: Hiding -> Exp -> Exp -> TcM (Exp,Exp)
+applyHidden Visible x ty = applyHidden' x =<< eval WHNF ty
+applyHidden Hidden  x ty = return (x,ty)
+
+applyHidden' :: Exp -> Exp -> TcM (Exp,Exp)
+applyHidden' x (Pi (Arg Hidden u) v) = do
   arg <- freshMeta u
   let x'  = App x (hidden arg)
   let ty' = substBound v arg
-  applyHidden x' ty'
-applyHidden x (Si (Arg Hidden _) v) = do
+  applyHidden' x' =<< eval WHNF ty'
+applyHidden' x (Si (Arg Hidden _) v) = do
   let x'  = Proj (hidden Proj2) x
   let ty' = substBound v (Proj (hidden Proj1) x)
-  applyHidden x' ty'
-applyHidden x _ty = pure x
+  applyHidden' x' =<< eval WHNF ty'
+applyHidden' x ty = pure (x,ty)
 
 {-
 -- Ensure that x of type ty 
@@ -274,10 +279,11 @@ tc Nothing (Free x) = do
   return (Free x, ty)
 tc Nothing (Proj p x) = do
   (x',x_ty) <- tc Nothing x
-  (ty1,ty2) <- unifyBinder SiB (argHiding p) x_ty
+  (x'',x_ty') <- applyHidden (argHiding p) x' x_ty
+  (ty1,ty2) <- unifyBinder SiB (argHiding p) x_ty'
   case argValue p of
-    Proj1 -> return (Proj p x', ty1)
-    Proj2 -> return (Proj p x', substBound ty2 (Proj (Proj1<$p) x'))
+    Proj1 -> return (Proj p x'', ty1)
+    Proj2 -> return (Proj p x'', substBound ty2 (Proj (Proj1<$p) x''))
 tc Nothing Blank = do
   ty <- freshMetaSet
   tc (Just ty) Blank
@@ -289,9 +295,10 @@ tc Nothing (Set i) = do
   return (Set i', Set (sucLevel i'))
 tc Nothing (App x (Arg h y)) = do
   (x',x_ty) <- tc Nothing x
-  (ty1,ty2) <- unifyBinder PiB h x_ty
+  (x'',x_ty') <- applyHidden h x' x_ty
+  (ty1,ty2) <- unifyBinder PiB h x_ty'
   (y',_) <- tc (Just ty1) y
-  return (App x' (Arg h y'), substBound ty2 y')
+  return (App x'' (Arg h y'), substBound ty2 y')
 tc Nothing (TypeSig x y) = do
   (y',_l) <- tcType y
   tc (Just y') x
