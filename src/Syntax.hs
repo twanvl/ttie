@@ -19,6 +19,7 @@ import Names
 import Tokenizer
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 import Data.List (lookup,findIndex)
 import Data.Default.Class
@@ -45,8 +46,7 @@ data Exp
   -- equality
   | Eq   (Bound Exp) Exp Exp
   | Refl (Bound Exp)
-  | Fw Exp Exp | Bw Exp Exp
-  | FwBw Exp Exp | BwFw Exp Exp | FwBwFw Exp Exp
+  | Cast (Bound Exp) Exp Exp Exp
   | Equiv Exp Exp Exp Exp Exp
   -- interval
   | Interval | I1 | I2 | I12 | I21 | IFlip Exp
@@ -60,10 +60,6 @@ data Exp
 -- Binders
 data Binder = PiB | SiB | LamB
   deriving (Eq)
-
-pattern Pi  x y = Binder PiB  x y
-pattern Si  x y = Binder SiB  x y
-pattern Lam x y = Binder LamB x y
 
 type MetaVar = TaggedVar "meta"
 
@@ -94,9 +90,16 @@ data Telescoped a
   | TCons (Arg Exp) (Bound Telescope)
 -}
 
+pattern Pi  x y = Binder PiB  x y
+pattern Si  x y = Binder SiB  x y
+pattern Lam x y = Binder LamB x y
+
 infixl 9 `App`, `AppV`, `AppH`
 pattern AppV x y = App x (Arg Visible y)
 pattern AppH x y = App x (Arg Hidden  y)
+
+pattern PiV x y = Pi (Arg Visible x) y
+pattern PiH x y = Pi (Arg Hidden  x) y
 
 --------------------------------------------------------------------------------
 -- Universe levels
@@ -165,11 +168,7 @@ instance TraverseChildren Exp Exp where
   traverseChildren _ I21 = pure I21
   traverseChildren f (IFlip x) = IFlip <$> f x
   traverseChildren f (IV x y z w) = IV <$> f x <*> f y <*> f z <*> f w
-  traverseChildren f (Fw x y) = Fw <$> f x <*> f y
-  traverseChildren f (Bw x y) = Bw <$> f x <*> f y
-  traverseChildren f (FwBw x y) = FwBw <$> f x <*> f y
-  traverseChildren f (BwFw x y) = BwFw <$> f x <*> f y
-  traverseChildren f (FwBwFw x y) = FwBwFw <$> f x <*> f y
+  traverseChildren f (Cast  a b c d) = Cast <$> traverseBound Interval f a <*> f b <*> f c <*> f d
   traverseChildren f (Equiv a b c d e) = Equiv <$> f a <*> f b <*> f c <*> f d <*> f e
   traverseChildren f (TypeSig x y) = TypeSig <$> f x <*> f y
   traverseChildren f (Meta    x y) = Meta x <$> traverse f y
@@ -209,6 +208,9 @@ instance Subst Exp where
 -- free names
 nameUsed :: Name -> Exp -> Bool
 nameUsed v = getAny . foldExp 0 (\_ -> Any False) (\i -> Any $ i == v)
+
+freeNames :: Exp -> Set Name
+freeNames = foldExp 0 (\_ -> Set.empty) Set.singleton
 
 freshName :: Name -> Exp -> Name
 freshName n x = head $ dropWhile (`nameUsed` x) (nameVariants n)
@@ -304,11 +306,9 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ I21 = text "i21"
   ppr p (IFlip x) = group $ parenIf (p > 10) $ text "iflip" <+> ppr 11 x
   ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
-  ppr p (Fw x y) = group $ parenIf (p > 10) $ text "fw" <+> ppr 11 x <+> ppr 11 y
-  ppr p (Bw x y) = group $ parenIf (p > 10) $ text "bw" <+> ppr 11 x <+> ppr 11 y
-  ppr p (FwBw x y) = group $ parenIf (p > 10) $ text "fw-bw" <+> ppr 11 x <+> ppr 11 y
-  ppr p (BwFw x y) = group $ parenIf (p > 10) $ text "bw-fw" <+> ppr 11 x <+> ppr 11 y
-  ppr p (FwBwFw x y) = group $ parenIf (p > 10) $ text "fw-bw-fw" <+> ppr 11 x <+> ppr 11 y
+  ppr p (Cast  a b c d) = group $ parenAlignIf (p > 10) $ case renameForPrinting a of
+    Bound "" a' -> text "cast"             <+> ppr 11 a' <+> ppr 11 b <+> ppr 11 c <+> ppr 11 d
+    Bound n  a' -> text "cast_" <.> text n <+> ppr 11 a' <+> ppr 11 b <+> ppr 11 c <+> ppr 11 d
   ppr p (Equiv a b c d e) = group $ parenIf (p > 10) $ text "equiv" <+> ppr 11 a <+> ppr 11 b <+> ppr 11 c <+> ppr 11 d <+> ppr 11 e
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
@@ -374,7 +374,10 @@ parseExpPrim p
   <|> IFlip <$ guard (p <= 10) <* tokReservedName "iflip" <*> parseExp 11
   <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Refl (capture n x)) <$ guard (p <= 10) <*> tokRefl <*> parseExp 11
-  <|> (\n x -> Eq   (capture n x)) <$ guard (p <= 10) <*> tokEq <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
+  <|> (\n x -> Eq   (capture n x)) <$ guard (p <= 10) <*> tokEq   <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
+  <|> (\n x -> Cast (capture n x)) <$ guard (p <= 10) <*> tokCast <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
+  <|> (\n x -> Cast (capture n x) I1 I2) <$ guard (p <= 10) <*> tokFw <*> parseExp 11 <*> parseExp 11
+  <|> (\n x -> Cast (capture n x) I2 I1) <$ guard (p <= 10) <*> tokBw <*> parseExp 11 <*> parseExp 11
   <|> Free <$> parseNonOpName
   <|> Meta . TV.TV <$> tokMeta <*> parseMetaArgs
   <?> "expression"

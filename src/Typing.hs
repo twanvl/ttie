@@ -11,6 +11,7 @@ import Util.MyPrelude
 import Util.PrettyM
 import Syntax
 import Substitution
+import SubstitutionQQ
 import Names
 import TcMonad
 import Eval
@@ -372,18 +373,24 @@ tc Nothing (IV x y z w) = do
   _ <- unify x' t1
   _ <- unify y' t2
   return (IV x' y' z' w', substBound ta w')
-tc Nothing (Fw x y) = do
-  (x',t) <- tc Nothing x
-  (ta,t1,t2) <- unifyEq t
-  _ <- traverseBound Interval unifySet ta
-  (y',_) <- tc (Just t1) y
-  return (Fw x' y', t2)
-tc Nothing (Bw x y) = do
-  (x',t) <- tc Nothing x
-  (ta,t1,t2) <- unifyEq t
-  _ <- traverseBound Interval unifySet ta
-  (y',_) <- tc (Just t2) y
-  return (Fw x' y', t1)
+tc Nothing (Cast x j1 j2 y) = do
+  (x',_) <- tcBoundType Interval x
+  (j1',_) <- tc (Just Interval) j1
+  (j2',_) <- tc (Just Interval) j2
+  (y',_) <- tc (Just $ substBound x' j1') y
+  return (Cast x' j1' j2' y', substBound x' j2')
+tc Nothing (Equiv a b c d e) = do
+  l <- freshMetaLevel
+  ty1 <- freshMeta (Set l)
+  ty2 <- freshMeta (Set l)
+  let x = "x"
+  (a',_) <- tc (Just [qq| PiV ty1 [$x]ty2[] |]) a
+  (b',_) <- tc (Just [qq| PiV ty2 [$x]ty1[] |]) b
+  (c',_) <- tc (Just [qq| PiV ty1 [$x](Eq [$x]ty1[] (AppV b'[] (AppV a'[] x)) x) |]) c
+  (d',_) <- tc (Just [qq| PiV ty2 [$x](Eq [$x]ty2[] (AppV a'[] (AppV b'[] x)) x) |]) d
+  --(e',_) <- tc (Just [qq| PiV ty1 [$x]ty1[] |]) e
+  let e' = e
+  return (Equiv a' b' c' d' e', Eq (notBound (Set l)) ty1 ty2)
 tc Nothing (Meta x args) = do
   val <- metaValue x args
   case val of

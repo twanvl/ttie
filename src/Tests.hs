@@ -38,6 +38,7 @@ testNames = Map.fromList
   ,("f", pe "A -> B")
   ,("B'", pe "A -> Set")
   ,("f'", pe "(x:A) -> B' x")
+  ,("ab", pe "Eq Set A B")
   ,("Nat", pe "Set")
   ,("zero", pe "Nat")
   ,("suc", pe "Nat -> Nat")
@@ -87,6 +88,14 @@ goodExpressions =
   ,"(\\x y -> tt) : (x y : Unit) -> Eq _ x y"
   -}
   ,"(\\xx' -> refl_i (f xx'^i)) : forall {x x'}. Eq A x x' -> Eq _ (f x) (f x')"
+  -- casts
+  ,"{-subst-} (\\P {x} {y} xy px -> fw_i (P xy^i) px)"
+   ++": {A : Set} -> (P : A -> Set) -> {x y : A} -> Eq _ x y -> P x -> P y"
+  ,"{-jay-type-} {A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
+  ,"{-bw-fw-} (\\x -> refl_i (cast_j ab^j i i1 (cast_j ab^j i1 i x)))"
+   ++" : forall x. Eq _ x (bw_i ab^i (fw_i ab^i x))"
+  --,"(\\{A} {x} P {y} xy px -> fw_i ) :" ++
+  -- "{A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ]
 
 -- expressions that shouldn't typecheck

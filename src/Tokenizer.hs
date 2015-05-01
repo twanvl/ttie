@@ -97,6 +97,7 @@ isReservedName :: String -> Bool
 isReservedName ('p':'r':'o':'j':(x:xs)) = all (`elem`"12") (x:xs)
 isReservedName xs = xs `elem`
   ["Pi","Sigma","W","Top","Bot","Set","Type","Fin","Eq","refl","Interval","i1","i2","i12","i21"
+  ,"cast","fw","bw","equiv"
   ,"forall","exists","proj1","proj2"
   ,"->",":",",","\\","\\/","=","of"
   ,"×","→","⇒","∀","Π","Σ","≡"]
@@ -146,6 +147,15 @@ tokEq = indented *> P.try (P.string "Eq" *> (tokNameEnd *> return "" <|> P.strin
 
 tokRefl :: Parser String
 tokRefl = indented *> P.try (P.string "refl" *> (tokNameEnd *> return "" <|> P.string "_" *> tokAnyName)) <* tokWS
+
+tokCast :: Parser String
+tokCast = indented *> P.try (P.string "cast" *> (tokNameEnd *> return "" <|> P.string "_" *> tokAnyName)) <* tokWS
+
+tokFw :: Parser String
+tokFw = indented *> P.try (P.string "fw" *> (tokNameEnd *> return "" <|> P.string "_" *> tokAnyName)) <* tokWS
+
+tokBw :: Parser String
+tokBw = indented *> P.try (P.string "bw" *> (tokNameEnd *> return "" <|> P.string "_" *> tokAnyName)) <* tokWS
 
 tokFin :: Parser Int
 tokFin = indented *> P.try (P.string "Fin" *> tokIntPart <* tokNameEnd) <* tokWS
