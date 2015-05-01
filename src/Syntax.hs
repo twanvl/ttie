@@ -45,9 +45,12 @@ data Exp
   -- equality
   | Eq   (Bound Exp) Exp Exp
   | Refl (Bound Exp)
-  | Interval | I1 | I2 | I12 | I21
+  | Fw Exp Exp | Bw Exp Exp
+  | FwBw Exp Exp | BwFw Exp Exp | FwBwFw Exp Exp
+  | Equiv Exp Exp Exp Exp Exp
+  -- interval
+  | Interval | I1 | I2 | I12 | I21 | IFlip Exp
   | IV Exp Exp Exp Exp
-  -- | Fw Exp Exp | Bw Exp Exp | FwBw Exp Exp | BwFw Exp Exp | Adj Exp Exp | Equiv Exp Exp Exp Exp Exp
   -- typing
   | TypeSig Exp Exp
   | Meta MetaVar (Seq Exp)
@@ -160,7 +163,14 @@ instance TraverseChildren Exp Exp where
   traverseChildren _ I2 = pure I2
   traverseChildren _ I12 = pure I12
   traverseChildren _ I21 = pure I21
+  traverseChildren f (IFlip x) = IFlip <$> f x
   traverseChildren f (IV x y z w) = IV <$> f x <*> f y <*> f z <*> f w
+  traverseChildren f (Fw x y) = Fw <$> f x <*> f y
+  traverseChildren f (Bw x y) = Bw <$> f x <*> f y
+  traverseChildren f (FwBw x y) = FwBw <$> f x <*> f y
+  traverseChildren f (BwFw x y) = BwFw <$> f x <*> f y
+  traverseChildren f (FwBwFw x y) = FwBwFw <$> f x <*> f y
+  traverseChildren f (Equiv a b c d e) = Equiv <$> f a <*> f b <*> f c <*> f d <*> f e
   traverseChildren f (TypeSig x y) = TypeSig <$> f x <*> f y
   traverseChildren f (Meta    x y) = Meta x <$> traverse f y
   traverseChildren _ Blank    = pure $ Blank
@@ -292,7 +302,14 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ I2 = text "i2"
   ppr _ I12 = text "i12"
   ppr _ I21 = text "i21"
+  ppr p (IFlip x) = group $ parenIf (p > 10) $ text "iflip" <+> ppr 11 x
   ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
+  ppr p (Fw x y) = group $ parenIf (p > 10) $ text "fw" <+> ppr 11 x <+> ppr 11 y
+  ppr p (Bw x y) = group $ parenIf (p > 10) $ text "bw" <+> ppr 11 x <+> ppr 11 y
+  ppr p (FwBw x y) = group $ parenIf (p > 10) $ text "fw-bw" <+> ppr 11 x <+> ppr 11 y
+  ppr p (BwFw x y) = group $ parenIf (p > 10) $ text "bw-fw" <+> ppr 11 x <+> ppr 11 y
+  ppr p (FwBwFw x y) = group $ parenIf (p > 10) $ text "fw-bw-fw" <+> ppr 11 x <+> ppr 11 y
+  ppr p (Equiv a b c d e) = group $ parenIf (p > 10) $ text "equiv" <+> ppr 11 a <+> ppr 11 b <+> ppr 11 c <+> ppr 11 d <+> ppr 11 e
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
     | Seq.null args = ppr 0 i
@@ -354,6 +371,7 @@ parseExpPrim p
   <|> I2 <$ tokReservedName "i2"
   <|> I12 <$ tokReservedName "i12"
   <|> I21 <$ tokReservedName "i21"
+  <|> IFlip <$ guard (p <= 10) <* tokReservedName "iflip" <*> parseExp 11
   <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Refl (capture n x)) <$ guard (p <= 10) <*> tokRefl <*> parseExp 11
   <|> (\n x -> Eq   (capture n x)) <$ guard (p <= 10) <*> tokEq <*> parseExp 11 <*> parseExp 11 <*> parseExp 11

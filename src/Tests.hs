@@ -78,12 +78,15 @@ goodExpressions =
   ,"refl (x,x)"
   ,"i12"
   ,"refl_i (\\(x:(refl Nat)^i) -> x)"
+  ,"proj2 ({x} , x , f) x"
+  -- OTT
+  {-
   ,"proj1 (refl (x,y))"
   ,"(refl f') {_} {_} (refl x)"
   ,"(refl f') xy"
-  ,"proj2 ({x} , x , f) x"
   ,"(\\x y -> tt) : (x y : Unit) -> Eq _ x y"
-  --,"Eq_i ((u:A i) -> B i u) x y"
+  -}
+  ,"(\\xx' -> refl_i (f xx'^i)) : forall {x x'}. Eq A x x' -> Eq _ (f x) (f x')"
   ]
 
 -- expressions that shouldn't typecheck
@@ -158,8 +161,11 @@ testExp xStr = do
     myTestTcM $ tc Nothing x
   -- and the modified expression should yield the same type
   testPart "Type inference of expanded expression" $ do
-    xty' <- myTestTcM $ tc Nothing x'
-    assertEqual "Should be equal" (x',ty) xty'
+    (x'',ty') <- myTestTcM $ tc Nothing x'
+    tyNf <- myTestTcM $ eval NF ty
+    ty'Nf <- myTestTcM $ eval NF ty'
+    assertEqual "Values should be equal" x' x''
+    assertEqual "Types should be equal" tyNf ty'Nf
   -- and we should also be able to typecheck it
   testPart "Type checking" $ do
     xty' <- myTestTcM $ tc (Just ty) x'

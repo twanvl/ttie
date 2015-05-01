@@ -74,7 +74,7 @@ tokLowerName = tokLowerNameNoWS <* tokWS <?> "name"
 tokLowerNameNoWS :: Parser String
 tokLowerNameNoWS = P.try (do
   indented
-  n <- (:) <$> P.satisfy isLower <*> P.many (P.satisfy isNameCont) <?> "name"
+  n <- (:) <$> P.satisfy (\x -> isLower x || x `elem` "_") <*> P.many (P.satisfy isNameCont) <?> "name"
   when (isReservedName n) $ P.unexpected ("reserved name " ++ n)
   tokNameEnd
   return n
@@ -96,7 +96,7 @@ tokAQName = P.try (P.char '$' *> tokAnyName <* tokNameEnd) <* tokWS
 isReservedName :: String -> Bool
 isReservedName ('p':'r':'o':'j':(x:xs)) = all (`elem`"12") (x:xs)
 isReservedName xs = xs `elem`
-  ["_","Pi","Sigma","W","Top","Bot","Set","Type","Fin","Eq","refl","Interval","i1","i2","i12","i21"
+  ["Pi","Sigma","W","Top","Bot","Set","Type","Fin","Eq","refl","Interval","i1","i2","i12","i21"
   ,"forall","exists","proj1","proj2"
   ,"->",":",",","\\","\\/","=","of"
   ,"×","→","⇒","∀","Π","Σ","≡"]

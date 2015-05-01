@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE QuasiQuotes, ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
 module Eval where
 
 import Prelude ()
@@ -34,6 +35,7 @@ evalHere :: EvalStrategy -> Exp -> TcM Exp
 evalHere s (TypeSig x _ty) = evalMore s x
 evalHere s (App x y) = evalApp s x y
 evalHere s (Proj x y) = evalProj s x y
+evalHere s (IFlip x) = evalIFlip s x
 evalHere s (IV x y z w) = evalIV s x y z w
 evalHere s (Eq x y z) = evalEq s x y z
 evalHere _ x = pure x
@@ -59,8 +61,14 @@ evalApp _ x y = pure $ App x y
 evalProj :: EvalStrategy -> Arg Proj -> Exp -> TcM Exp
 evalProj s (Arg _ Proj1) (Pair x _y _) = evalMore s (argValue x)
 evalProj s (Arg _ Proj2) (Pair _x y _) = evalMore s y
-evalProj s p (Refl x) = Refl <$> traverseBound Interval (evalProj s p) x
+--evalProj s p (Refl x) = Refl <$> traverseBound Interval (evalProj s p) x
 evalProj _ p x = pure $ Proj p x
+
+evalIFlip :: EvalStrategy -> Exp -> TcM Exp
+evalIFlip _ I1 = pure I2
+evalIFlip _ I2 = pure I1
+evalIFlip _ (IFlip x) = pure $ x
+evalIFlip _ x  = pure $ IFlip x
 
 evalIV :: EvalStrategy -> Exp -> Exp -> Exp -> Exp -> TcM Exp
 evalIV _ x _ _ I1 = pure x
@@ -70,6 +78,7 @@ evalIV s _ _ (Refl z) w = evalMore s $ substBound z w
 evalIV _ x y z w  = pure $ IV x y z w
 
 evalEq :: EvalStrategy -> Bound Exp -> Exp -> Exp -> TcM Exp
+{-
 evalEq s [qq| [$i] Si (Arg $h a) ([$n] b) |] y z = do
   evalMore s [qq| Si (Arg $h (Eq [$i]a (Proj (Arg $h Proj1) y[]) (Proj (Arg $h Proj1) z[])))
                  [$n](Eq [$i]b[i=i,n=IV (Proj (Arg $h Proj1) y[]) (Proj (Arg $h Proj1) z[]) n i]
@@ -88,7 +97,34 @@ evalEq s [qq| [$i] Pi (Arg $h a) ([$n] b) |] y z = do
          Pi (Arg $h (Eq [$i]a[i=i] n1 n2)) [$n](
          Eq [$i]b[i=i,n=IV n1 n2 n i] (App y[] (Arg $h n1)) (App z[] (Arg $h n2))))) |]
 evalEq _ [qq| [$_i] UnitTy |] _ _ = pure UnitTy
+-}
 evalEq _ x y z = pure $ Eq x y z
+
+--evalFw s [qq|Refl [$_n]x[] |] y = y
+evalFw :: EvalStrategy -> Exp -> Exp -> TcM Exp
+evalFw _ [qq|Refl (NotBound _) |] y = return y
+evalFw s [qq|Refl [$i](Pi (Arg $h a) [$x]b)|] y = evalMore s
+  [qq| Lam (Arg $h a[i=I2]) [$x](Fw (Refl [$i]b[i,x=Bw (Refl [$i]a[i]) x])
+                                    (App y[] (Arg $h (Bw (Refl [$i]a[i]) x)))) |]
+evalFw s [qq|Refl [$i](Si (Arg $h a) [$x]b)|] y = evalMore s
+  [qq| Pair (Arg $h (Fw (Refl [$i]a) (Proj (Arg $h Proj1) y)))
+                    (Fw (Refl [$i]b[i,x=Proj (Arg $h Proj1) y[]]) (Proj (Arg $h Proj2) y))
+            (Si (Arg $h a[i=I2]) [$x]b[i=I2,x]) |]
+evalFw s [qq|Refl (Bound i (Eq a x y))|] [qq|Refl (Bound _ z)|] = evalFwRefl i a x y z
+--evalFw s [qq|Refl [$n] |]
+evalFw _ x y = pure $ Fw x y
+
+evalFwRefl :: Name -> Name -> Bound Exp -> Exp -> Exp -> Exp -> TcM Exp
+evalFwRefl i j a Unit Unit Unit = pure Unit
+evalFwRefl i j a (Pair x x' xt) (Pair y y' yt) (Pair z z' zt) = undefined
+evalFwRefl i j a x y z = pure $ Fw (Refl (Bound i (Eq a x y))) (Refl (Bound i z))
+
+{-
+fw_i (Eq_j A_12^i u v) w
+fw_i (Eq_j A_12^j u v) w
+fw_i (Eq (Eq x y) u v) w
+fw_i (Eq (Eq x y) (refl u) (refl v)) (refl w)
+-}
 
 --------------------------------------------------------------------------------
 -- Evaluation in all possible locations

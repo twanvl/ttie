@@ -109,3 +109,5 @@ lowerBound = lowerBy 1 . boundBody
 notBound :: Subst a => a -> Bound a
 notBound = Bound "" . raiseBy 1
 
+pattern NotBound x <- (Bound _ (lowerBy 1 -> Just x))
+
