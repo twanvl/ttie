@@ -94,8 +94,10 @@ goodExpressions =
   ,"{-jay-type-} {A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ,"{-bw-fw-} (\\x -> refl_i (cast_j ab^j i i1 (cast_j ab^j i1 i x)))"
    ++" : forall x. Eq _ x (bw_i ab^i (fw_i ab^i x))"
-  --,"(\\{A} {x} P {y} xy px -> fw_i ) :" ++
-  -- "{A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
+  ,"{-eq-fw-} (\\x -> refl_i (cast_j ab^j i1 i x))"
+   ++" : forall x. Eq_i ab^i x (fw_i ab^i x)"
+  ,"(\\{A} {x} P {y} xy px -> fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px) :" ++
+   "{A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ]
 
 -- expressions that shouldn't typecheck
