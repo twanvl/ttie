@@ -216,6 +216,11 @@ seqZipWithM_ f a b = sequenceA_ (Seq.zipWith f a b)
 seqCatMaybes :: Seq (Maybe a) -> Seq a
 seqCatMaybes = foldl (\xs x -> maybe xs (xs |>) x) empty
 
+seqLookup :: Int -> Seq a -> Maybe a
+seqLookup i s
+  | 0 <= i && i < Seq.length s = Just (Seq.index s i)
+  | otherwise                  = Nothing
+
 --------------------------------------------------------------------------------
 -- Graph
 --------------------------------------------------------------------------------

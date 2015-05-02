@@ -272,7 +272,12 @@ captureMany ns = runIdentity . traverseExp 0 ExpTraversal
 --------------------------------------------------------------------------------
 
 instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
-  ppr _ (Var i) = text "#" <.> ppr 0 i
+  --ppr _ (Var i) = text "#" <.> ppr 0 i
+  ppr _ (Var i) = do
+    mname <- seqLookup i <$> boundNames
+    case mname of
+      Just n  -> text n <.> text "#" <.> ppr 0 i
+      Nothing -> text "#" <.> ppr 0 i
   ppr p (Free c) = ppr p c
   ppr _ (Set ZeroLevel) = text "Set"
   ppr _ (Set (IntLevel i)) = text "Set" <.> int i
