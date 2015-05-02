@@ -164,9 +164,14 @@ unify x y =
   `catchError` \err -> do
     x' <- eval WHNF x
     y' <- eval WHNF y
+    unless (isWHNF x') $ error $ "eval didn't produce WHNF: " ++ show x'
+    unless (isWHNF y') $ error $ "eval didn't produce WHNF: " ++ show y'
     if x /= x' || y /= y'
-      then unify' x' y' `catchError` \_ -> throwError err
-      else throwError =<< pure err $$ text "When unifying" <+> tcPpr 11 x <+> text "with" <+> tcPpr 11 y
+      then unify' x' y' `catchError` \err' ->
+           -- throw err', since in err we might have matched up wrong things
+           throwError =<< pure err' $$ (text "When unifying" <+> tcPpr 11 x $/$ text "with" <+> tcPpr 11 y)
+                                    $$ (text "Which simplifies to" <+> tcPpr 11 x' $/$ text "with" <+> tcPpr 11 y')
+      else throwError =<< pure err  $$ (text "When unifying" <+> tcPpr 11 x $/$ text "with" <+> tcPpr 11 y)
 
 -- | Unify two expressions that are in WHNF (or that we assume to have equal heads).
 -- The left is the 'actual' type (of an argument e.g.),
@@ -174,6 +179,8 @@ unify x y =
 -- Optionally a value of the actual type may be passed in.
 -- It will be applied to hidden arguments or wrapped in hidden lams/pairs as needed
 unify' :: Exp -> Exp -> TcM Exp
+--unify' x y | not (isWHNF x) || not (isWHNF y) = error $ "unify': arguments not in WHNF:" ++ show (x,y)
+--unify' x y | not (isWHNF x) || not (isWHNF y) = tcError =<< text "unify': arguments not in WHNF:" <+> tcPpr 0 (x,y)
 unify' (Set i) (Set i') = Set <$> unifyLevels i i'
 unify' (Proj p x) (Proj p' x') | p == p' = Proj p <$> unify' x x'
 unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*> (Arg h <$> unify' y y')
@@ -330,6 +337,7 @@ tc Nothing (Lam (Arg h x) (Bound n y)) = do
 tc Nothing (Binder b (Arg h x) y) = do -- Pi or Sigma
   (x',lx) <- tcType x
   (y',ly) <- tcBoundType x' y
+    `annError` text "in the second argument of a binder"
   return (Binder b (Arg h x') y', Set (maxLevel lx ly))
 tc Nothing (Pair (Arg h x) y Blank) = do
   -- assume non-dependent pair
@@ -403,6 +411,7 @@ tc Nothing (Meta x args) = do
 tc (Just ty) x = do
   (x',tx) <- tc Nothing x
   ty'' <- unify ty tx
+    `annError` (text "When checkinging that" <+> tcPpr 0 x' $/$ (text "has type" <+> tcPpr 0 ty))
   return (x',ty'')
 
 -- check that x is a type, return its level

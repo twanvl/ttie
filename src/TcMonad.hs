@@ -68,6 +68,9 @@ modifyUsLevelMetas :: (TS.TaggedSeq "level-meta" (Maybe Level) -> TS.TaggedSeq "
                    -> UnificationState -> UnificationState
 modifyUsLevelMetas f us = us { usLevelMetas = f (usLevelMetas us) }
 
+metaUnresolved :: MetaValue -> Bool
+metaUnresolved = isNothing . mvValue
+
 --------------------------------------------------------------------------------
 -- Monad
 --------------------------------------------------------------------------------
@@ -117,10 +120,22 @@ freeType n = do
 --------------------------------------------------------------------------------
 
 tcError :: Doc -> TcM a
-tcError err = throwError =<< pure err $$ dumpMetas
+tcError err = throwError =<< pure err $$ dumpCtx $$ dumpMetas
+
+dumpCtx :: TcM Doc
+dumpCtx = text "With variables:" $$ indent 2 (vcat . toList . Seq.mapWithIndex pvar =<< boundTypes)
+  where
+  pvar i (Named n ty) = text n <.> text "#" <.> int i <+> text ":" <+> tcPpr 0 (raiseBy (i+1) ty)
 
 dumpMetas :: TcM Doc
-dumpMetas =
+dumpMetas = do
+  metas <- filter (metaUnresolved . snd) <$> getAllMetas
+  case metas of
+    [] -> emptyDoc
+    ms -> text "With metas:" $$ indent 2 (vcat $ map (uncurry pprMeta) ms)
+
+dumpAllMetas :: TcM Doc
+dumpAllMetas =
   text "With metas:" $$ indent 2 (vcat . map (uncurry pprMeta) =<< getAllMetas) $$
   text "With level metas:" $$ indent 2 (vcat . map (uncurry pprLevelMeta) =<< getAllLevelMetas)
 

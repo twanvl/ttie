@@ -118,8 +118,12 @@ evalCast s [qq|[$i](Si (Arg $h a) [$x]b)|] j1 j2 y = evalMore s
             (Si (Arg $h a[i=$j2]) [$x]b[i=$j2,x]) |]
 --
 --evalCast s [qq|(Bound i (Eq a x y))|] [qq|Refl (Bound _ z)|] = evalFwRefl i a x y z
+--evalCast _ [qq|[$i](Eq a x[] y)|]
 --
 evalCast _ a j1 j2 x = pure $ Cast a j1 j2 x
+
+--evalCastEq ::
+--evalCastEq s a x y z j1 j2 = pure [qq|Cast $j1 $j2 z|]
 
 {-
 fw_i (Eq_j A_12^i u v) w
@@ -127,6 +131,21 @@ fw_i (Eq_j A_12^j u v) w
 fw_i (Eq (Eq x y) u v) w
 fw_i (Eq (Eq x y) (refl u) (refl v)) (refl w)
 -}
+
+--------------------------------------------------------------------------------
+-- Is an expression in WHNF?
+--------------------------------------------------------------------------------
+
+isWHNF :: Exp -> Bool
+isWHNF (TypeSig _ _) = False
+isWHNF (App (Lam _ _) _) = False
+isWHNF (App x _) = isWHNF x
+isWHNF (Proj _ (Pair _ _ _)) = False
+isWHNF (Proj _ x) = isWHNF x
+isWHNF (IV _ _ _ I1) = False
+isWHNF (IV _ _ _ I2) = False
+isWHNF (IV _ _ _ i) = isWHNF i
+isWHNF _ = True
 
 --------------------------------------------------------------------------------
 -- Evaluation in all possible locations

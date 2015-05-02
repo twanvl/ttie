@@ -22,7 +22,8 @@ instance Monoid Doc where
   mempty = PP.empty
   mappend = (PP.<>)
 
-infixr 5 $$
+infixr 5 $$,$/$,$-$
+infixr 6 <.>,<+>
 
 showDoc :: Doc -> String
 showDoc = flip PP.displayS "" . PP.renderPretty 0.8 110

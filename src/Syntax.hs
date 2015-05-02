@@ -310,7 +310,8 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ I12 = text "i12"
   ppr _ I21 = text "i21"
   ppr p (IFlip x) = group $ parenIf (p > 10) $ text "iflip" <+> ppr 11 x
-  ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
+  --ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
+  ppr p (IV x y z w) = group $ parenAlignIf (p > 10) $ text "iv" <+> ppr 11 x <+> ppr 11 y <+> ppr 11 z <+> ppr 11 w
   ppr p (Cast  a b c d) = group $ parenAlignIf (p > 10) $ case renameForPrinting a of
     Bound "" a' -> text "cast"             <+> ppr 11 a' <+> ppr 11 b <+> ppr 11 c <+> ppr 11 d
     Bound n  a' -> text "cast_" <.> text n <+> ppr 11 a' <+> ppr 11 b <+> ppr 11 c <+> ppr 11 d
