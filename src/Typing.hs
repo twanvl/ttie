@@ -333,6 +333,16 @@ tc (Just (Pi (Arg Hidden x) (Bound n y))) z@(Lam (Arg Visible _) _) = do
     y' <- eval WHNF y
     tc (Just y') (raiseBy 1 z)
   return (Lam (Arg Hidden x) (Bound n z'), Pi (Arg Hidden x) (Bound n y'))
+tc (Just (Pi (Arg h x) (Bound n y))) (Lam (Arg h' x') (Bound n' z)) | h == h' = do
+  -- propagate type information
+  (x'',_) <- tcType x
+  (x''',_) <- tcType x'
+  xx <- unify x'' x'''
+  let nn = unifyName n' n
+  localBound (named nn xx) $ do
+    (y',_) <- tcType y
+    (z',_) <- tc (Just y') z
+    return (Lam (Arg h xx) (Bound nn z'), Pi (Arg h xx) (Bound nn y'))
 tc Nothing (Lam (Arg h x) (Bound n y)) = do
   (x',_) <- tcType x
   (y',t) <- localBound (named n x') (tc Nothing y)

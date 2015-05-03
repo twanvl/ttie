@@ -64,7 +64,7 @@ goodExpressions =
   ,"proj2 (x,y)"
   ,"f x"
   ,"{A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
-  ,"(\\{u} x -> x) : {A : Set} -> (A -> A)"
+  ,"(\\{A} x -> x) : {A : Set} -> (A -> A)"
   ,"(\\{A} {B} f x -> f x) : {A B : Set} -> (A -> B) -> (A -> B)"
   ,"(\\{A} {B} {C} f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
   ,"(\\f g x -> f (g x)) : {A B C : Set} -> (B -> C) -> (A -> B) -> (A -> C)"
@@ -81,15 +81,14 @@ goodExpressions =
   -}
   ,"(\\xx' -> refl_i (f xx'^i)) : forall {x x'}. Eq A x x' -> Eq _ (f x) (f x')"
   -- casts
-  ,"{-subst-} (\\P {x} {y} xy px -> fw_i (P xy^i) px)"
+  ,"{-subst-} (\\P xy px -> fw_i (P xy^i) px)"
    ++": {A : Set} -> (P : A -> Set) -> {x y : A} -> Eq _ x y -> P x -> P y"
-  ,"{-jay-type-} {A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ,"{-bw-fw-} (\\x -> refl_i (cast_j ab^j i i1 (cast_j ab^j i1 i x)))"
    ++" : forall x. Eq _ x (bw_i ab^i (fw_i ab^i x))"
   ,"{-eq-fw-} (\\x -> refl_i (cast_j ab^j i1 i x))"
    ++" : forall x. Eq_i ab^i x (fw_i ab^i x)"
-  ,"{-jay-} (\\{A} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px -> fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px) :" ++
-   "{A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
+  ,"{-jay-} (\\{A} {x} P xy px -> fw_i (P xy^i (cast_j (Eq _ x xy^j) i1 i (refl x))) px)"
+   ++" : {A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ,"{-jay-inline-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
      \ fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px : P y xy"
   ]
