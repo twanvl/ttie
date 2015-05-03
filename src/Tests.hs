@@ -52,14 +52,6 @@ testCtx = emptyCtx
   { ctxFreeType = testNames
   }
 
-testTcM :: EvalAllMetas a => TcM a -> a
-testTcM x = case runTcM testCtx (x >>= evalAllMetas) of
-  Left e -> error (show e)
-  Right y -> y
-
-testTcM' :: EvalAllMetas a => TcM a -> (a,Doc)
-testTcM' x = testTcM ((,) <$> x <*> dumpMetas)
-
 --------------------------------------------------------------------------------
 -- Expressions to test
 --------------------------------------------------------------------------------
@@ -96,8 +88,10 @@ goodExpressions =
    ++" : forall x. Eq _ x (bw_i ab^i (fw_i ab^i x))"
   ,"{-eq-fw-} (\\x -> refl_i (cast_j ab^j i1 i x))"
    ++" : forall x. Eq_i ab^i x (fw_i ab^i x)"
-  ,"(\\{A} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px -> fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px) :" ++
+  ,"{-jay-} (\\{A} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px -> fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px) :" ++
    "{A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
+  ,"{-jay-inline-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
+     \ fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px : P y xy"
   ]
 
 -- expressions that shouldn't typecheck
@@ -152,10 +146,18 @@ instance IsTest TestCase where
 -- Test of parser and typechecker
 --------------------------------------------------------------------------------
 
+testTcM :: EvalAllMetas a => TcM a -> a
+testTcM x = case runTcM testCtx (x >>= evalAllMetasThrow) of
+  Left e -> error (show e)
+  Right y -> y
+
+testTcM' :: EvalAllMetas a => TcM a -> (a,Doc)
+testTcM' x = testTcM ((,) <$> x <*> dumpMetas)
+
 myTestTcM :: (EvalAllMetas a, Pretty TcM a) => TcM a -> Either String a
 myTestTcM mx = showError $ runTcM testCtx $ do
   x <- mx
-  evalAllMetasThrow x `annError` (text "in" <+> ppr 0 x)
+  evalAllMetasThrow x `annError` (text "in" <+> tcPpr 0 x)
 
 testExp :: String -> Either String String
 testExp xStr = do
@@ -170,6 +172,10 @@ testExp xStr = do
   -- we should be able to infer its type
   (x',ty) <- testPart "Type inference" $
     myTestTcM $ tc Nothing x
+  {--- we should still be able to pretty print and re-parse
+  testPart "Pretty printer(typechecked)" $ do
+    x'' <- showError $ runParser parseExpTop "prety-printed" (show x')
+    assertEqual "parse.ppr not identity" x' x''-}
   -- and the modified expression should yield the same type
   testPart "Type inference of expanded expression" $ do
     (x'',ty') <- myTestTcM $ tc Nothing x'

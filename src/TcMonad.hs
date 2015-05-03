@@ -263,8 +263,8 @@ evalAllExpMetas err (Meta mv args) = do
   case x' of
     Nothing  -> do err (text "Unresolved meta:" <+> tcPpr 0 (Meta mv args)
                         $$ text "of type" <+> (tcPpr 0 =<< metaType mv args))
-                   Meta mv <$> traverse evalAllMetas args
-    Just x'' -> evalAllMetas x''
+                   Meta mv <$> traverse (evalAllExpMetas err) args
+    Just x'' -> evalAllExpMetas err x''
 evalAllExpMetas err (Set i) = Set <$> evalLevelWith err i
 evalAllExpMetas err x = traverseChildren (evalAllExpMetas err) x
 
