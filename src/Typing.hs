@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ViewPatterns #-}
 module Typing where
 
 import Prelude ()
@@ -203,6 +204,8 @@ unify' x (Pair (Arg h x') y' z') =
 unify' (Lam (Arg h x) y) f = Lam (Arg h x) <$> unifyBound x y (Bound "" (App (raiseBy 1 f) (Arg h (Var 0))))
 unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x (Bound "" (App (raiseBy 1 f) (Arg h (Var 0)))) y
 --unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x [qq| [$n] App f[] (Arg h n)|] y
+unify' [qq|Refl [$_i](IV _ _ x[] _i)|] x' = unify x x'
+unify' x [qq|Refl [$_i](IV _ _ x'[] _i)|] = unify x x'
 
 unify' x y = do
   tcError =<< text "Failed to unify" <+> tcPpr 11 x <+> text "with" <+> tcPpr 11 y

@@ -3,7 +3,7 @@
 {-# LANGUAGE DataKinds, KindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 module SubstitutionQQ
-  (Wrap,unwrap,qq)
+  (Wrap(..),qq)
   where
 
 import Prelude ()
@@ -161,7 +161,7 @@ wrapQ n = do
 
 unwrapQ :: String -> ExpQ
 unwrapQ n = do
-  -- [e|unrap :: Wrap "b" a -> a|]
+  -- [e|unwrap :: Wrap "b" a -> a|]
   unwrapE <- [e|unwrap|]
   wrapT <- [t|Wrap|]
   a <- newName "a"
@@ -185,14 +185,35 @@ mkSubst n xs y
       else mkSubst' n xs y
   | otherwise = mkSubst' n xs y
 
+mkUnsubst :: [Maybe Int] -> PatQ -> PatQ
+mkUnsubst [] = id
+mkUnsubst xs
+  | last xs == Just (length xs - 1) = mkUnsubst (init xs)
+  | all isNothing xs = viewP ([| lowerBy |] `appE` dataE (length xs)) . justP
+  | otherwise        = viewP ([| raiseSubstsM |] `appE` dataE (length $ filter isJust xs) `appE` listE xs') . justP
+  where
+  xs' = map (maybe [|Nothing|] (\x -> [|Just|] `appE` ([|var|] `appE` dataE x))) xs
+
+justP :: PatQ -> PatQ
+justP x = conP 'Just [x] --'
 
 toPat :: GenBind -> PatQ
 toPat (Con x xs) = conP x (map toPat xs)
 toPat (Fun _ _) = error "Functions not supported in patterns"
 toPat (BoundVar i) = viewP [e|unVar|] (dataP (Just i))
-toPat (Var bs _ x Nothing) = foldr (\b -> viewP (wrapQ b)) (varP (mkName x)) bs
-toPat (Var _  _ _ (Just _)) = error "Can't handle substitution in patterns"
-
+--toPat (Var bs _ x Nothing) = foldr (\b -> viewP (wrapQ b)) (varP (mkName x)) bs
+--toPat (Var bs _ x (Just [])) = error $ "Lower by " ++ show (length bs)
+--toPat (Var _  _ _ (Just _)) = error "Can't handle substitution in patterns"
+toPat (Var bs _ x ss)
+  | any (`notElem` bs) ss' = error $ "Unknown variables: " ++ show (filter (`notElem` bs) ss')
+  | otherwise = unsubst
+  where
+  ss' = maybe bs (map fst) ss -- names to wrap in
+  -- mapping back
+  namePat | x == "_"  = wildP
+          | otherwise = varP (mkName x)
+  wrapped = foldr (\b -> viewP (wrapQ b)) namePat ss'
+  unsubst = mkUnsubst [findIndex (b==) (reverse ss') | b <- reverse bs] wrapped
 
 toExp :: GenBind -> ExpQ
 toExp (Con x xs) = foldl appE (conE x) (map toExp xs)
@@ -203,12 +224,6 @@ toExp (Var bs bb x ss) = mkSubst (length bs) (map (toExp . snd) (reverse ss')) (
   -- if there is no substitution, then assume that all bound variables are to be substituted
   ss' = fromMaybe (map (\n -> (n,Var bs bb n Nothing)) bs) ss
   unwrapped = foldr (\(b,_) -> appE (unwrapQ b)) (varE (mkName x)) ss'
-
-{-
-dump x = do
-  qRunIO $ print x
-  return x
--}
 
 qq :: QuasiQuoter
 qq = QuasiQuoter

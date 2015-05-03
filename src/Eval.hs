@@ -118,7 +118,8 @@ evalCast s [qq|[$i](Si (Arg $h a) [$x]b)|] j1 j2 y = evalMore s
             (Si (Arg $h a[i=$j2]) [$x]b[i=$j2,x]) |]
 --
 --evalCast s [qq|(Bound i (Eq a x y))|] [qq|Refl (Bound _ z)|] = evalFwRefl i a x y z
---evalCast _ [qq|[$i](Eq a x[] y)|]
+evalCast s [qq|[$i](Eq [$_j]_a[_j] _x[] y)|] I1 I2 [qq|Refl (NotBound _)|] = evalMore s
+  [qq| Refl [$i]y[i] |]
 --
 evalCast _ a j1 j2 x = pure $ Cast a j1 j2 x
 
