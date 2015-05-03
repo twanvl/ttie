@@ -39,6 +39,7 @@ evalHere s (IFlip x) = evalIFlip s x
 evalHere s (IV x y z w) = evalIV s x y z w
 evalHere s (Eq x y z) = evalEq s x y z
 evalHere s (Cast x y z w) = evalCast s x y z w
+evalHere NF x = pure $ etaContract x
 evalHere _ x = pure x
 
 evalMore :: EvalStrategy -> Exp -> TcM Exp
@@ -55,8 +56,8 @@ evalMeta s x xs = do
 evalApp :: EvalStrategy -> Exp -> Arg Exp -> TcM Exp
 evalApp s (Lam _ x) y = evalMore s $ substBound x (argValue y)
 --evalApp s (Refl x `AppH` y `AppH` z) (Arg h w) = Refl (App x (Arg h (IV)))
-evalApp s [qq| Refl [$n]x `AppH` y `AppH` z|] (Arg h w) =
-  evalMore s $ [qq| Refl [$n](App x (Arg $h (IV y[] z[] w[] n))) |]
+--evalApp s [qq| Refl [$n]x `AppH` y `AppH` z|] (Arg h w) =
+--  evalMore s $ [qq| Refl [$n](App x (Arg $h (IV y[] z[] w[] n))) |]
 evalApp _ x y = pure $ App x y
 
 evalProj :: EvalStrategy -> Arg Proj -> Exp -> TcM Exp
@@ -132,6 +133,12 @@ fw_i (Eq_j A_12^j u v) w
 fw_i (Eq (Eq x y) u v) w
 fw_i (Eq (Eq x y) (refl u) (refl v)) (refl w)
 -}
+
+etaContract :: Exp -> Exp
+etaContract (Pair (Arg h1 (Proj (Arg h2 Proj1) x)) (Proj (Arg h3 Proj2) y) _) | x == y && h1 == h2 && h1 == h3 = x
+etaContract [qq|Lam (Arg h _) [$_x](App f[] (Arg $h' _x))|] | h == h' = f
+etaContract [qq|Refl [$_i](IV _ _ x[] _i)|] = x
+etaContract x = x
 
 --------------------------------------------------------------------------------
 -- Is an expression in WHNF?
