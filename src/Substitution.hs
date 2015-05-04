@@ -89,6 +89,16 @@ unsubstN xs = mapExpM $ \i -> IM.lookup i vars
   where
   vars = invCtxMap xs
 
+-- replace all occurences of pat with (var 0)
+unsubst1 :: (Eq a, Subst a) => a -> a -> a
+unsubst1 pat = runIdentity . runDepthT 0 . go
+  where
+  go x = withDepth $ \l -> case unVar x of
+     _ | x == raiseBy l pat -> pure (var l)
+     Just i | i < l     -> pure (var i)
+     Just i | otherwise -> pure (var (i+1))
+     Nothing            -> runDepthT l $ traverseChildren go x
+
 lowerBy :: Subst a => Int -> a -> Maybe a
 lowerBy 0 = pure
 lowerBy n = mapExpM $ \i -> if i < n then Nothing else Just $ var (i - n)

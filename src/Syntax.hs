@@ -40,9 +40,12 @@ data Exp
   | Proj (Arg Proj) Exp
   | Pair (Arg Exp) Exp Exp -- (x , y) : t
   -- unit type
-  | UnitTy | UnitVal
+  | UnitTy
+  | UnitVal
   -- sum types
-  -- | SumTy [(Name,Exp)] | SumVal Name Exp Exp | SumElim [(Name,Exp)] Exp
+  | SumTy [SumCtor]
+  | SumVal Name Exp Exp
+  | SumElim Exp [SumCase] Exp -- case x of {..} : (..) x
   -- equality
   | Eq   (Bound Exp) Exp Exp
   | Refl (Bound Exp)
@@ -67,7 +70,11 @@ type MetaVar = TaggedVar "meta"
 data Proj = Proj1 | Proj2
   deriving (Eq, Ord, Show, Enum)
 
--- Universe levels
+-- | Sum constructors and cases
+data SumCtor = SumCtor { ctorName :: Name, ctorType :: Exp } -- n : a
+  deriving (Eq)
+data SumCase = SumCase { caseName :: Name, caseType :: Exp, caseBody :: Bound Exp } -- n (x:a) -> b
+  deriving (Eq)
 
 -- Declarations
 data Decl
@@ -137,6 +144,9 @@ sucLevel = addLevel 1
 maxLevel :: Level -> Level -> Level
 maxLevel (Level i j) (Level i' j') = Level (max i i') (TM.unionWith max j j')
 
+maxLevels :: [Level] -> Level
+maxLevels = foldr maxLevel zeroLevel
+
 --------------------------------------------------------------------------------
 -- Constructors / combinators
 --------------------------------------------------------------------------------
@@ -144,6 +154,9 @@ maxLevel (Level i j) (Level i' j') = Level (max i i') (TM.unionWith max j j')
 mkNat :: Int -> Exp
 mkNat 0 = Free "zero"
 mkNat n = Free "suc" `AppV` mkNat (n-1)
+
+caseToCtor :: SumCase -> SumCtor
+caseToCtor (SumCase n u _) = SumCtor n u
 
 --------------------------------------------------------------------------------
 -- Traversing expressions
@@ -159,6 +172,9 @@ instance TraverseChildren Exp Exp where
   traverseChildren f (Pair x y z) = Pair <$> traverse f x <*> f y <*> f z
   traverseChildren _ UnitTy = pure UnitTy
   traverseChildren _ UnitVal = pure UnitVal
+  traverseChildren f (SumTy xs) = SumTy <$> traverse (traverseChildren f) xs
+  traverseChildren f (SumVal x y z) = SumVal x <$> f y <*> f z
+  traverseChildren f (SumElim x ys z) = SumElim <$> f x <*> traverse (traverseChildren f) ys <*> f z
   traverseChildren f (Eq x y z) = Eq <$> traverseBound Interval f x <*> f y <*> f z
   traverseChildren f (Refl x) = Refl <$> traverseBound Interval f x
   traverseChildren _ Interval = pure Interval
@@ -173,6 +189,11 @@ instance TraverseChildren Exp Exp where
   traverseChildren f (TypeSig x y) = TypeSig <$> f x <*> f y
   traverseChildren f (Meta    x y) = Meta x <$> traverse f y
   traverseChildren _ Blank    = pure $ Blank
+
+instance TraverseChildren Exp SumCtor where
+  traverseChildren f (SumCtor n x) = SumCtor n <$> f x
+instance TraverseChildren Exp SumCase where
+  traverseChildren f (SumCase n x y) = traverseBinder (SumCase n) f f x y
 
 data ExpTraversal f = ExpTraversal
   { travVar  :: Int  -> f Exp
@@ -296,6 +317,9 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
     where (a',b') = namedBound a (renameForPrinting b)
   ppr _ (UnitTy)  = text "Unit"
   ppr _ (UnitVal) = text "tt"
+  ppr _ (SumTy xs) = group $ text "data" <+> semiBraces (map (ppr 0) xs)
+  ppr p (SumVal x y _) = group $ parenAlignIf (p > 10) $ text "value" <+> text x <+> ppr 11 y
+  ppr _ (SumElim x ys _) = group $ text "case" <+> ppr 0 x <+> text "of" <+> semiBraces (map (ppr 0) ys)
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
   ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
@@ -326,6 +350,15 @@ instance Applicative m => Pretty m Proj where
   ppr _ Proj1 = text "proj1"
   ppr _ Proj2 = text "proj2"
 
+instance (MonadBound Exp m, MonadBoundNames m) => Pretty m SumCtor where
+  ppr _ (SumCtor n x) = text n <+> text ":" <+> ppr 0 x
+
+instance (MonadBound Exp m, MonadBoundNames m) => Pretty m SumCase where
+  ppr _ (SumCase n x y) = text n <+> ppr 1 (Named yN x) <+> text "->" <+> ppr 0 (boundBody y')
+    where
+    y' = renameForPrinting y
+    yN = if boundName y' == "" then "_" else boundName y'
+
 instance Applicative m => Pretty m Level where
   ppr _ (IntLevel i) = int i
   ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ ppr 0 mv <.> if i == 0 then emptyDoc else text "+" <.> int i | (mv,i) <- TM.toList ls]
@@ -340,6 +373,10 @@ instance Applicative m => Pretty m LevelMetaVar where
   ppr _ (TV.TV i) = text "?l" <.> ppr 0 i
 
 instance Show Exp where
+  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
+instance Show SumCtor where
+  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
+instance Show SumCase where
   showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
 instance Show Level where
   showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
@@ -372,6 +409,9 @@ parseExpPrim p
   <|> Proj (hidden  Proj2) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj2" <* tokRBrace) <*> parseExp 11
   <|> UnitTy <$ tokReservedName "Unit"
   <|> UnitVal <$ tokReservedName "tt"
+  <|> SumTy   <$ tokReservedName "data" <* tokLBrace <*> parseSumCtor `sepBy` tokSemi <* tokRBrace
+  <|> SumElim <$ tokReservedName "case" <*> parseExp 11 <* tokReservedName "of" <* tokLBrace <*> parseSumCase `sepBy` tokSemi <* tokRBrace <*> pure Blank
+  <|> SumVal <$ tokReservedName "value" <*> tokName <*> parseExp 11 <*> pure Blank
   <|> Interval <$ tokReservedName "Interval"
   <|> I1 <$ tokReservedName "i1"
   <|> I2 <$ tokReservedName "i2"
@@ -521,6 +561,18 @@ toBinders (Free x)  = return [x]
 toBinders (App xs (Free x)) = (++ [x]) <$> toNames xs
 toBinders x = failDoc $ text "Left hand side of ':' should be a list of names, found" $/$ ppr 0 x
 -}
+
+parseSumCtor :: Parser SumCtor
+parseSumCtor = SumCtor <$> tokName <* tokColon <*> parseExp 0
+
+parseSumCase :: Parser SumCase
+parseSumCase = do
+  n     <- tokName
+  (m,x) <- (,) <$> tokName <*> pure Blank
+       <|> (,) <$ tokLParen <*> tokName <* tokColon <*> parseExp 0 <* tokRParen
+  tokArrow
+  y <- parseExp 0
+  return $ SumCase n x (capture m y)
 
 parseDecl :: Parser Decl
 parseDecl = do

@@ -75,11 +75,13 @@ vcat = fmap PP.vcat . sequenceA
 encloseSep :: Applicative m => m Doc -> m Doc -> m Doc -> [m Doc] -> m Doc
 encloseSep a b c d = PP.encloseSep <$> a <*> b <*> c <*> sequenceA d
 
-lbracket, rbracket, lparen, rparen, comma, semi :: Applicative m => m Doc
+lbracket, rbracket, lparen, rparen, lbrace, rbrace, comma, semi :: Applicative m => m Doc
 lbracket = pure PP.lbracket
 rbracket = pure PP.rbracket
 lparen   = pure PP.lparen
 rparen   = pure PP.rparen
+lbrace   = pure PP.lbrace
+rbrace   = pure PP.rbrace
 comma    = pure PP.comma
 semi     = pure PP.semi
 
@@ -137,6 +139,7 @@ parenAlignIf :: Functor m => Bool -> m Doc -> m Doc
 parenAlignIf True  = parens . align
 parenAlignIf False = id
 
-semiBrackets :: Applicative m => [m Doc] -> m Doc
+semiBrackets, semiBraces :: Applicative m => [m Doc] -> m Doc
 semiBrackets = encloseSep lbracket rbracket semi
+semiBraces   = encloseSep lbrace   rbrace   semi
 

@@ -7,6 +7,7 @@
 module Eval where
 
 import Prelude ()
+import Data.List (lookup)
 import Util.MyPrelude
 import Util.Pretty
 import Syntax
@@ -35,6 +36,7 @@ evalHere :: EvalStrategy -> Exp -> TcM Exp
 evalHere s (TypeSig x _ty) = evalMore s x
 evalHere s (App x y) = evalApp s x y
 evalHere s (Proj x y) = evalProj s x y
+evalHere s (SumElim x ys z) = evalCase s x ys z
 evalHere s (IFlip x) = evalIFlip s x
 evalHere s (IV x y z w) = evalIV s x y z w
 evalHere s (Eq x y z) = evalEq s x y z
@@ -65,6 +67,12 @@ evalProj s (Arg _ Proj1) (Pair x _y _) = evalMore s (argValue x)
 evalProj s (Arg _ Proj2) (Pair _x y _) = evalMore s y
 --evalProj s p (Refl x) = Refl <$> traverseBound Interval (evalProj s p) x
 evalProj _ p x = pure $ Proj p x
+
+evalCase :: EvalStrategy -> Exp -> [SumCase] -> Exp -> TcM Exp
+evalCase s (SumVal n x _) ys _
+  | Just (SumCase _ _ y) <- find ((n==) . caseName) ys
+  = evalMore s (substBound y x)
+evalCase _ x ys a = pure $ SumElim x ys a
 
 evalIFlip :: EvalStrategy -> Exp -> TcM Exp
 evalIFlip _ I1 = pure I2

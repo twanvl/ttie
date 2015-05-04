@@ -66,7 +66,7 @@ unsubst' l0 vars x0 = go x0
                   traceM $ "Returned as " ++ show (Meta mv args) ++ " ~= " ++ show (Meta mv' args') ++ " by " ++ show vars
                   -}
                   return $ Just $ Meta mv' args'
-        _ -> runMaybeT $ traverseChildren (MaybeT . go) x
+        _ -> runMaybeT $ traverseChildren (MaybeT . go) x'
 
 -- Suppose we are trying to abstract  (?2[#0,#1,#2] -> bar) to assign it to ?1[#0,foo #0,#3]
 -- which means that we map #0->#0, #1->Nothing, #2->#3
@@ -190,6 +190,9 @@ unify' (Binder b (Arg h x) y) (Binder b' (Arg h' x') y') | b == b' && h == h' = 
   Binder b (Arg h x'') <$> unifyBound x'' y y'
 unify' (Pair (Arg h x) y z) (Pair (Arg h' x') y' z') | h == h' =
   Pair <$> (Arg h <$> unify x x') <*> unify y y' <*> unify z z'
+unify' (SumTy xs) (SumTy xs') | length xs == length xs' = SumTy <$> zipWithM unifyCtor xs xs'
+unify' (SumVal x y z) (SumVal x' y' z') | x == x' = SumVal x <$> unify y y' <*> unify z z'
+unify' (SumElim x ys z) (SumElim x' ys' z') | length ys == length ys' = SumElim <$> unify x x' <*> zipWithM unifyCase ys ys' <*> unify z z'
 unify' (IFlip x) (IFlip x') = IFlip <$> unify' x x'
 unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify y y' <*> unify z z'
 unify' (Meta x args) y = unifyMeta id   x args y
@@ -217,6 +220,15 @@ unifyName n _  = n
 unifyBound :: Exp -> Bound Exp -> Bound Exp -> TcM (Bound Exp)
 unifyBound ty (Bound n x) (Bound n' x') = Bound n'' <$> localBound (Named n'' ty) (unify x x')
   where n'' = unifyName n n'
+
+unifyCtor :: SumCtor -> SumCtor -> TcM SumCtor
+unifyCtor (SumCtor n x) (SumCtor n' x') | n == n' = SumCtor n <$> unify x x'
+unifyCtor _ _ = tcError =<< text "Failed to unify constructors"
+
+unifyCase :: SumCase -> SumCase -> TcM SumCase
+unifyCase (SumCase n x y) (SumCase n' x' y') | n == n' = SumCase n <$> unify x x' <*> unifyBound x y y'
+unifyCase _ _ = tcError =<< text "Failed to unify cases"
+
 
 --unify' (Just valX) x (Pi (Arg Hidden u) v) =
 
@@ -248,6 +260,11 @@ unifyEq xy = do
   Eq x' y' z' <- unify xy (Eq x y z)
   return (x',y',z')
   
+-- | Unify x with (SumTy _)
+unifySumTy :: Exp -> TcM [SumCtor]
+unifySumTy (SumTy xs) = return xs
+unifySumTy ty = tcError =<< text "Expected a sum type instead of" $/$ tcPpr 0 ty
+
 
 
 -- To handle hidden arguments
@@ -352,21 +369,20 @@ tc Nothing (Binder b (Arg h x) y) = do -- Pi or Sigma
   (y',ly) <- tcBoundType x' y
     `annError` text "in the second argument of a binder"
   return (Binder b (Arg h x') y', Set (maxLevel lx ly))
-tc Nothing (Pair (Arg h x) y Blank) = do
-  -- assume non-dependent pair
-  (x',tx) <- tc Nothing x
-  (y',ty) <- tc Nothing y
-  let txy = Si (Arg h tx) (notBound ty)
-  return (Pair (Arg h x') y' txy, txy)
-tc mty (Pair (Arg h x) y ty) = do
-  (ty',_) <- tcType ty
-  ty'' <- case mty of
-    Nothing -> pure ty'
-    Just ty2 -> unify ty' ty2
-  (ty1,ty2) <- unifyBinder SiB h ty''
-  (x',_) <- tc (Just ty1) x
-  (y',_) <- tc (Just $ substBound ty2 x') y
-  return (Pair (Arg h x') y' ty'', ty'')
+tc mty (Pair (Arg h x) y z) = do
+  mty' <- tcMType mty z
+  case mty' of
+    Nothing -> do
+      -- assume non-dependent pair
+      (x',tx) <- tc Nothing x
+      (y',ty) <- tc Nothing y
+      let txy = Si (Arg h tx) (notBound ty)
+      return (Pair (Arg h x') y' txy, txy)
+    Just ty' -> do
+      (ty1,ty2) <- unifyBinder SiB h ty'
+      (x',_) <- tc (Just ty1) x
+      (y',_) <- tc (Just $ substBound ty2 x') y
+      return (Pair (Arg h x') y' ty', ty')
 tc Nothing (Eq x y z) = do
   (x',l) <- tcBoundType Interval x
   (y',_) <- tc (Just $ substBound x' I1) y
@@ -377,6 +393,68 @@ tc Nothing (Refl (Bound n x)) = do
   return (Refl (Bound n x'), Eq (Bound n t) (subst1 I1 x') (subst1 I2 x'))
 tc Nothing UnitTy = return (UnitTy, Set zeroLevel)
 tc Nothing UnitVal = return (UnitVal, UnitTy)
+tc Nothing (SumTy xs) = do
+  let tcCtor (SumCtor n x) = do
+        (x',l) <- tcType x
+        return (SumCtor n x', l)
+  xsls <- traverse tcCtor xs
+  let xs' = sortWith ctorName $ map fst xsls
+  let l = maxLevels $ map snd xsls
+  case findDuplicates (map ctorName xs') of
+    [] -> return ()
+    ds -> tcError =<< text "Duplicate constructor names: " <+> hsep (map text ds)
+  return (SumTy xs', Set l)
+tc mty (SumVal n x y) = do
+  my <- tcMType mty y
+  case my of
+    Nothing -> tcError =<< text "Type signature required for sum values"
+    Just y' -> do
+      ys <- unifySumTy y'
+      cTy <- case find ((n==) . ctorName) ys of
+        Nothing -> tcError =<< text "Constructor not in this type:" <+> text n <+> text "in" <+> tcPpr 0 y'
+        Just (SumCtor _ cTy) -> return cTy
+      (x',_) <- tc (Just cTy) x
+      return (SumVal n x' y', y')
+tc mty (SumElim x ys Blank) = do
+  -- result type
+  ty <- case mty of
+    Nothing -> do
+      -- assume non-dependent eliminator
+      raiseBy 1 <$> freshMetaSet
+    Just ty -> do
+      -- ty is the type of the result, so with x instantiated.
+      -- we can (try to) recover the pi type:
+      -- if ty is of the form A[x], then the function type would be ((x:_) -> A[x])
+      return $ unsubst1 x ty
+  -- argument type
+  (xTy,_) <- tc Nothing (SumTy (map caseToCtor ys))
+  let z' = PiV xTy (Bound "" ty)
+  tc Nothing (SumElim x ys z')
+tc Nothing (SumElim x ys ty) = do
+  (ty',_) <- tcType ty
+  (ty1,ty2) <- unifyBinder PiB Visible ty'
+  -- check argument
+  (x',_) <- tc (Just ty1) x
+  -- check cases
+  ctors <- unifySumTy ty1
+  let tcCase (SumCase n u (Bound m v)) = do
+        -- unify type with type from signature
+        u' <- case find ((==n) . ctorName) ctors of
+          Nothing -> tcError =<< text "Constructor not found:" <+> text n
+          Just c -> return (ctorType c)
+        (u'',_) <- tcType u
+        u''' <- unify u'' u'
+        -- typecheck body
+        let bodyTy = raiseSubsts 1 [SumVal n u''' ty1] (boundBody ty2)
+        (v',_) <- localBound (named m u''') $ tc (Just bodyTy) v
+        return (SumCase n u''' (Bound m v'))
+  ys' <- traverse tcCase ys
+  let ys'' = sortWith caseName ys'
+  -- duplicate cases?
+  case findDuplicates (map caseName ys'') of
+    [] -> return ()
+    ds -> tcError =<< text "Duplicate case names: " <+> hsep (map text ds)
+  return (SumElim x' ys'' ty', substBound ty2 x')
 tc Nothing Interval = return (Interval, Set zeroLevel)
 tc Nothing I1  = return (I1, Interval)
 tc Nothing I2  = return (I2, Interval)
@@ -433,6 +511,15 @@ tcType x = do
   (x',l) <- tc Nothing x
   l' <- unifySet l
   return (x',l')
+
+-- two possible sources of type signatures: inside the expression, and from the type argument to tc
+tcMType :: Maybe Exp -> Exp -> TcM (Maybe Exp)
+tcMType Nothing Blank = return Nothing
+tcMType Nothing ty = Just . fst <$> tcType ty
+tcMType (Just ty) Blank = return $ Just ty
+tcMType (Just ty) ty' = do
+  ty'' <- fst <$> tcType ty'
+  Just <$> unify ty ty''
 
 tcBoundType :: Exp -> Bound Exp -> TcM (Bound Exp, Level)
 tcBoundType x (Bound n y) = do

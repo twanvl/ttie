@@ -72,6 +72,10 @@ goodExpressions =
   ,"i12"
   ,"refl_i (\\(x:(refl Nat)^i) -> x)"
   ,"proj2 ({x} , x , f) x"
+  -- sums
+  ,"data{zero:Unit; suc:Nat}"
+  ,"(\\x -> case x of {zero _ -> zero; suc x -> x}) : data{zero:Unit; suc:Nat} -> Nat"
+  ,"refl _ : Eq _ x (case value left tt of {left _ -> x; right (_:Unit) -> y})"
   -- OTT
   {-
   ,"proj1 (refl (x,y))"
@@ -102,6 +106,7 @@ badExpressions =
   ,"\\x. x"
   ,"(refl f) x"
   ,"f (refl x)"
+  ,"data{zero:Unit; zero:Nat}"
   ]
 
 --------------------------------------------------------------------------------

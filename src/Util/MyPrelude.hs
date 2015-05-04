@@ -86,12 +86,12 @@ import Control.Monad.Trans.Identity (IdentityT(..))
 import Control.Applicative
 import Control.Arrow (first,second,(***))
 import Data.Monoid
-import Data.List (intersperse)
 import Data.Bool
 import Data.Maybe
 import Data.Either
+import Data.Function
 import Data.Ord
-import Data.List (sort,sortBy)
+import Data.List (intersperse,sort,sortBy,group,groupBy)
 import Data.Void
 
 import System.IO
@@ -132,6 +132,12 @@ nubOrdWith f = go Set.empty
   go seen (x:xs)
     | f x `Set.member` seen = go seen xs
     | otherwise = x : go (Set.insert (f x) seen) xs
+
+sortWith :: Ord b => (a -> b) -> [a] -> [a]
+sortWith f = sortBy (comparing f)
+
+findDuplicates :: Ord a => [a] -> [a]
+findDuplicates = map head . filter (not . null . drop 1) . group . sort
 
 trySubtract :: Int -> Int -> Maybe Int
 trySubtract i j

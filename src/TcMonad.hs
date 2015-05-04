@@ -151,6 +151,8 @@ class EvalAllMetas a where
   evalAllMetas      = evalAllMetasWith (\_ -> return ())
   evalAllMetasThrow = evalAllMetasWith (\msg -> throwError =<< msg)
 
+instance (EvalAllMetas a) => EvalAllMetas [a] where
+  evalAllMetasWith f = traverse (evalAllMetasWith f)
 instance (EvalAllMetas a, EvalAllMetas b) => EvalAllMetas (a,b) where
   evalAllMetasWith f = traversePair (evalAllMetasWith f) (evalAllMetasWith f)
 instance EvalAllMetas Doc where
@@ -295,4 +297,11 @@ evalLevelVar (mv,add) = do
 
 instance EvalAllMetas Level where
   evalAllMetasWith = evalLevelWith
+
+--------------------------------------------------------------------------------
+-- Expand metas in ctors and cases
+--------------------------------------------------------------------------------
+
+instance EvalAllMetas SumCtor where
+  evalAllMetasWith err (SumCtor n x) = SumCtor n <$> evalAllMetasWith err x
 
