@@ -42,6 +42,7 @@ import Language.Haskell.TH.Syntax as TH
 
 -- More sugar:
 --   [$x] y = Bound $x [x]y
+--   [~x] y = wrap "x" [x]y
 --   [%x:t] y = sequenceBound t (Bound $x [x]y)
 --   %x y z = x y z
 --   x `F` y     =  F x y
@@ -60,9 +61,9 @@ type VarName = String
 type BoundName = String
 data GenBind 
   = Con  ConName [GenBind]
-  | Fun  Name    [GenBind]
+  | Fun  ExpQ    [GenBind]
   | Var  [BoundName] Bool VarName (Maybe [(BoundName,GenBind)])
-  deriving (Show)
+  deriving ()
 
 bind :: BoundName -> GenBind -> GenBind
 bind b (Con x xs) = Con x (map (bind b) xs)
@@ -73,7 +74,9 @@ bind b (Var bs False x xs) = Var bs     False x (fmap (map (second (bind b))) xs
 bindBound :: BoundName -> GenBind -> GenBind
 bindBound n x = Con (mkName "Bound") [Var [] False n Nothing, bind n x]
 bindSequence :: BoundName -> GenBind -> GenBind -> GenBind
-bindSequence n t x = Fun (mkName "sequenceBound") [t,bindBound n x]
+bindSequence n t x = Fun (varE $ mkName "sequenceBound") [t,bindBound n x]
+bindWrap :: BoundName -> GenBind -> GenBind
+bindWrap n x = Fun (wrapQ n) [bind n x]
 
 isBoundVar :: GenBind -> Maybe Int
 isBoundVar (Var bs _ x Nothing) = findIndex (==x) (reverse bs)
@@ -101,11 +104,12 @@ parseGenBindSimple p
   =   tokLParen *> parseGenBind 0 <* tokRParen
   <|> (Con . mkName) <$> tokUpperName <*>
       (guard (p <= 10) *> many (parseGenBind 11) <|> return [])
-  <|> (Fun . mkName) <$ tokReservedOp "%" <*> tokName <*>
+  <|> (Fun . varE . mkName) <$ tokReservedOp "%" <*> tokName <*>
       (guard (p <= 10) *> many (parseGenBind 11) <|> return [])
-  <|> tokLBracket *> (bindBound <$ tokDollar <*> tokName
-                  <|> bindSequence <$ tokReservedOp "%" <*> tokName <* tokColon <*> parseGenBindSimple 0
-                  <|> bind <$> tokName)
+  <|> tokLBracket *> (bindBound <$ tokDollar <*> tokLowerName
+                  <|> bindWrap <$ tokReservedOp "~" <*> tokLowerName
+                  <|> bindSequence <$ tokReservedOp "%" <*> tokLowerName <* tokColon <*> parseGenBindSimple 0
+                  <|> bind <$> tokLowerName)
                   <* tokRBracket <*> parseGenBind p
   <|> Var [] <$> (False <$ tokDollar <|> pure True)
              <*> tokLowerNameNoWS <*>
@@ -217,7 +221,7 @@ toPat (Var bs _ x ss)
 
 toExp :: GenBind -> ExpQ
 toExp (Con x xs) = foldl appE (conE x) (map toExp xs)
-toExp (Fun x xs) = foldl appE (varE x) (map toExp xs)
+toExp (Fun x xs) = foldl appE x        (map toExp xs)
 toExp (BoundVar i) = appE [e|var|] (dataE i)
 toExp (Var bs bb x ss) = mkSubst (length bs) (map (toExp . snd) (reverse ss')) (unwrapped)
   where

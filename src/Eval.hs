@@ -134,6 +134,33 @@ evalCast s [qq|[$i](SumTy xs)|] j1 j2 (SumVal n y _)
 evalCast s [qq|[$i](Eq [$_j]_a[_j] _x[] y)|] I1 I2 [qq|Refl (NotBound _)|] = evalMore s
   [qq| Refl [$i]y[i] |]
 --
+{-
+evalCast s [qq|[$i](Eq [$j](Pi (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
+  [qq| Refl [$j](Lam (Arg $h a[i=$i2,j])
+            [$x]() )|]
+  where
+  xu = [qq|[~x]IV u
+  x2 = [qq|[~x]Cast ([$i](Eq [$j]a[i,j] () ()) $i2 $i1 x |]
+-}
+--
+evalCast s [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
+  [qq| Refl [$j](Pair (Arg $h (IV u1[i=$i2] v1[i=$i2] z1[] j))
+                              (IV u2[i=$i2] v2[i=$i2] z2[] j)
+                      (Si (Arg $h a[i=$i2,j=j]) [$x]b[i=$i2,j=j,x])) |]
+  where
+  yk = [qq|[~j](IV (Si (Arg $h a[i=$i1,j=I1]) [$x]b[i=$i1,j=I1,x])
+                   (Si (Arg $h a[i=$i1,j=I2]) [$x]b[i=$i1,j=I2,x]) y[] j)|] :: Wrap "j" Exp
+  y1 = [qq|Refl [$j](Proj (Arg $h Proj1) yk)|]
+  y2 = [qq|Refl [$j](Proj (Arg $h Proj2) yk)|]
+  z1 = [qq|Cast [$i](Eq [$j]a[i,j       ] u1[i] v1[i]) $i1 $i2 y1[]|]
+  z2 = [qq|Cast [$i](Eq [$j]b[i,j,x=y1[]] u2[i] v2[i]) $i1 $i2 y2[]|]
+  u1 = [qq|[~i](Proj (Arg $h Proj1) u)|] :: Wrap "i" Exp
+  u2 = [qq|[~i](Proj (Arg $h Proj2) u)|]
+  v1 = [qq|[~i](Proj (Arg $h Proj1) v)|]
+  v2 = [qq|[~i](Proj (Arg $h Proj2) v)|]
+--
+evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
+--
 evalCast _ a j1 j2 x = pure $ Cast a j1 j2 x
 
 --evalCastEq ::

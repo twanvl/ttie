@@ -75,7 +75,6 @@ tokLowerNameNoWS :: Parser String
 tokLowerNameNoWS = P.try (do
   indented
   n <- (:) <$> P.satisfy (\x -> isLower x || x `elem` "_") <*> P.many (P.satisfy isNameCont) <?> "name"
-  when (isReservedName n) $ P.unexpected ("reserved name " ++ n)
   tokNameEnd
   return n
  <?> "name")

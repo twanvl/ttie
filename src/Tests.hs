@@ -76,6 +76,9 @@ goodExpressions =
   ,"data{zero:Unit; suc:Nat}"
   ,"(\\x -> case x of {zero _ -> zero; suc x -> x}) : data{zero:Unit; suc:Nat} -> Nat"
   ,"refl _ : Eq _ x (case value left tt of {left _ -> x; right (_:Unit) -> y})"
+  ,"(\\x -> case x of {}) : data{} -> {A : Set} -> A"
+  ,"(\\ft -> fw_i (case ft^i of {false _ -> Unit; true _ -> data{}}) tt)"
+   ++": Eq data{false:Unit;true:Unit} (value false tt) (value true tt) -> data{}" -- false /= true
   -- OTT
   {-
   ,"proj1 (refl (x,y))"
@@ -95,6 +98,10 @@ goodExpressions =
    ++" : {A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ,"{-jay-inline-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
      \ fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px : P y xy"
+  -- equivalence to OTT style
+  ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i1) -> B i1 x} -> ("
+   ++"(\\fg x12 -> refl_i (fg^i x12^i))"
+   ++": Eq_i ((x : A i) -> B i x) f g -> (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)))"
   ]
 
 -- expressions that shouldn't typecheck

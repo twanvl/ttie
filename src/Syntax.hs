@@ -410,7 +410,7 @@ parseExpPrim p
   <|> UnitTy <$ tokReservedName "Unit"
   <|> UnitVal <$ tokReservedName "tt"
   <|> SumTy   <$ tokReservedName "data" <* tokLBrace <*> parseSumCtor `sepBy` tokSemi <* tokRBrace
-  <|> SumElim <$ tokReservedName "case" <*> parseExp 11 <* tokReservedName "of" <* tokLBrace <*> parseSumCase `sepBy` tokSemi <* tokRBrace <*> pure Blank
+  <|> SumElim <$ tokReservedName "case" <*> parseExp 0 <* tokReservedName "of" <* tokLBrace <*> parseSumCase `sepBy` tokSemi <* tokRBrace <*> pure Blank
   <|> SumVal <$ tokReservedName "value" <*> tokName <*> parseExp 11 <*> pure Blank
   <|> Interval <$ tokReservedName "Interval"
   <|> I1 <$ tokReservedName "i1"
