@@ -239,14 +239,7 @@ freshName n x = head $ dropWhile (`nameUsed` x) (nameVariants n)
 -- convert (Var i) to (Free _), for display
 renameForPrinting :: Bound Exp -> Bound Exp
 renameForPrinting (Bound n b)
-  | varUsed 0 b = Bound n' (subst1 (Free n') b)
-  | otherwise   = Bound "" b
-  where
-  n' = freshName n b
-
-nameForPrinting :: Bound Exp -> Bound Exp
-nameForPrinting (Bound n b)
-  | varUsed 0 b = Bound n' (subst1 (Free n') b)
+  | varUsed 0 b = Bound n' (raiseSubsts 1 [Free n'] b)
   | otherwise   = Bound "" b
   where
   n' = freshName n b
