@@ -126,6 +126,10 @@ evalCast s [qq|[$i](Si (Arg $h a) [$x]b)|] j1 j2 y = evalMore s
                     (Cast [$i]b[i,x=Proj (Arg $h Proj1) y[]] $j1 $j2 (Proj (Arg $h Proj2) y))
             (Si (Arg $h a[i=$j2]) [$x]b[i=$j2,x]) |]
 --
+evalCast s [qq|[$i](SumTy xs)|] j1 j2 (SumVal n y _)
+  | Just ty <- traverse (map ctorType . find ((==n) . ctorName)) xs
+  = evalMore s [qq|SumVal n (Cast [$i]ty j1 j2 y) tyxs[i=j2]|]
+  where tyxs = SumTy <$> xs
 --evalCast s [qq|(Bound i (Eq a x y))|] [qq|Refl (Bound _ z)|] = evalFwRefl i a x y z
 evalCast s [qq|[$i](Eq [$_j]_a[_j] _x[] y)|] I1 I2 [qq|Refl (NotBound _)|] = evalMore s
   [qq| Refl [$i]y[i] |]
