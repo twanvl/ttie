@@ -22,7 +22,8 @@ instance Monoid Doc where
   mempty = PP.empty
   mappend = (PP.<>)
 
-infixr 5 $$,$/$,$-$
+infixr 4 $$,$-$
+infixl 5 $/$
 infixr 6 <.>,<+>
 
 showDoc :: Doc -> String
