@@ -316,11 +316,11 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
   ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
-    Bound "" x' -> align $ text "Eq"             $/$ ppr 11 x' $/$ ppr 11 y $/$ ppr 11 z
-    Bound n x'  -> align $ text "Eq_" <.> text n $/$ ppr 11 x' $/$ ppr 11 y $/$ ppr 11 z
+    Bound "" x' -> align $ text "Eq"             $/$ localBound (unnamed Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
+    Bound n x'  -> align $ text "Eq_" <.> text n $/$ localBound (named n Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
   ppr p (Refl x) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
-    Bound "" x' -> align $ text "refl"             $/$ ppr 11 x'
-    Bound n x'  -> align $ text "refl_" <.> text n $/$ ppr 11 x'
+    Bound "" x' -> align $ text "refl"             $/$ localBound (unnamed Interval) (ppr 11 x')
+    Bound n x'  -> align $ text "refl_" <.> text n $/$ localBound (named n Interval) (ppr 11 x')
   ppr _ Interval = text "Interval"
   ppr _ I1 = text "i1"
   ppr _ I2 = text "i2"
@@ -330,8 +330,8 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   --ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
   ppr p (IV x y z w) = group $ parenAlignIf (p > 10) $ align $ text "iv" $/$ ppr 11 x $/$ ppr 11 y $/$ ppr 11 z $/$ ppr 11 w
   ppr p (Cast  a b c d) = group $ parenIf (p > 10) $ align $ case renameForPrinting a of
-    Bound "" a' -> text "cast"             $/$ ppr 11 a' $/$ ppr 11 b $/$ ppr 11 c $/$ ppr 11 d
-    Bound n  a' -> text "cast_" <.> text n $/$ ppr 11 a' $/$ ppr 11 b $/$ ppr 11 c $/$ ppr 11 d
+    Bound "" a' -> text "cast"             $/$ localBound (unnamed Interval) (ppr 11 a') $/$ ppr 11 b $/$ ppr 11 c $/$ ppr 11 d
+    Bound n  a' -> text "cast_" <.> text n $/$ localBound (named n Interval) (ppr 11 a') $/$ ppr 11 b $/$ ppr 11 c $/$ ppr 11 d
   ppr p (Equiv a b c d e) = group $ parenIf (p > 10) $ align $ text "equiv" $/$ ppr 11 a $/$ ppr 11 b $/$ ppr 11 c $/$ ppr 11 d $/$ ppr 11 e
   ppr p (TypeSig a b) = group $ parenIf (p > 0) $ ppr 1 a $/$ text ":" <+> ppr 0 b
   ppr _ (Meta i args)
