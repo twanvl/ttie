@@ -306,7 +306,7 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr p (Binder x a b) = case x of
     PiB  -> group $ parenAlignIf (p > 1) $ ppr 2 a' $/$ text "->" <+> localBound (argValue a') (ppr 1 b')
     SiB  -> group $ parenAlignIf (p > 2) $ ppr 3 a' $/$ text "*"  <+> localBound (argValue a') (ppr 2 b')
-    LamB -> group $ parenAlignIf (p > 1) $ ppr 10 a' $/$ text "=>" <+> localBound (argValue a') (ppr 1 b')
+    LamB -> group $ parenAlignIf (p > 3) $ ppr 4 a' $/$ text "=>" <+> localBound (argValue a') (ppr 3 b')
     where (a',b') = namedBound a (renameForPrinting b)
   ppr _ (UnitTy)  = text "Unit"
   ppr _ (UnitVal) = text "tt"
