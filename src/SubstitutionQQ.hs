@@ -118,7 +118,7 @@ parseGenBindSimple p
 
 parseSubst :: Parser (BoundName,GenBind)
 parseSubst = do
-  n <- tokName
+  n <- tokLowerName
   v <- tokEquals *> parseGenBind 0 <|> return (Var [] True n Nothing)
   return (n,v)
 
