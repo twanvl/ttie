@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Typing where
 
 import Prelude ()
@@ -367,7 +368,7 @@ tc Nothing (Lam (Arg h x) (Bound n y)) = do
 tc Nothing (Binder b (Arg h x) y) = do -- Pi or Sigma
   (x',lx) <- tcType x
   (y',ly) <- tcBoundType x' y
-    `annError` text "in the second argument of a binder"
+    `annError` text "in the second argument of a binder" $/$ tcPpr 0 (Binder b (Arg h x') y)
   return (Binder b (Arg h x') y', Set (maxLevel lx ly))
 tc mty (Pair (Arg h x) y z) = do
   mty' <- tcMType mty z
@@ -385,8 +386,11 @@ tc mty (Pair (Arg h x) y z) = do
       return (Pair (Arg h x') y' ty', ty')
 tc Nothing (Eq x y z) = do
   (x',l) <- tcBoundType Interval x
+    `annError` text "in the 'type' argument of" $/$ tcPpr 0 (Eq x y z)
   (y',_) <- tc (Just $ substBound x' I1) y
+    `annError` text "in the 'i1 end' argument of" $/$ tcPpr 0 (Eq x y z)
   (z',_) <- tc (Just $ substBound x' I2) z
+    `annError` text "in the 'i2 end' argument of" $/$ tcPpr 0 (Eq x y z)
   return (Eq x' y' z', Set l)
 tc Nothing (Refl (Bound n x)) = do
   (x',t) <- localBound (named n Interval) $ tc Nothing x
@@ -474,9 +478,13 @@ tc Nothing (IV x y z w) = do
   return (IV x' y' z' w', substBound ta w')
 tc Nothing (Cast x j1 j2 y) = do
   (x',_) <- tcBoundType Interval x
+    `annError` text "in the 'type' argument of a cast"
   (j1',_) <- tc (Just Interval) j1
+    `annError` text "in the 'source side' argument of a cast"
   (j2',_) <- tc (Just Interval) j2
+    `annError` text "in the 'target side' argument of a cast"
   (y',_) <- tc (Just $ substBound x' j1') y
+    `annError` text "in the 'value' argument of a cast"
   return (Cast x' j1' j2' y', substBound x' j2')
 tc Nothing (Equiv a b c d e) = do
   l <- freshMetaLevel

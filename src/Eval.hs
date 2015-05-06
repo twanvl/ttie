@@ -114,6 +114,7 @@ evalEq _ x y z = pure $ Eq x y z
 evalCast :: EvalStrategy -> Bound Exp -> Exp -> Exp -> Exp -> TcM Exp
 evalCast _ _ I1 I1 y = return y
 evalCast _ _ I2 I2 y = return y
+evalCast _ _ j1 j2 y | j1 == j2 = return y
 evalCast _ (NotBound _) _ _ y = return y
 --
 evalCast s [qq|[$i](Pi (Arg $h a) [$x]b)|] j1 j2 y = evalMore s

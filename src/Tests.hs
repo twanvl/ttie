@@ -99,9 +99,21 @@ goodExpressions =
   ,"{-jay-inline-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
      \ fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px : P y xy"
   -- equivalence to OTT style
-  ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i1) -> B i1 x} -> ("
+  ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> ("
    ++"(\\fg x12 -> refl_i (fg^i x12^i))"
    ++": Eq_i ((x : A i) -> B i x) f g -> (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)))"
+  ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> ("
+   ++"(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i1 x} {cast_k (A k) i i2 x} (refl_j (cast_k (A k) i j x)))^i))"
+   ++": (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
+  -- type checking of evaluation steps
+  ,"forall (A : _ -> Set) j x. Eq _ (cast_i (A i) j j x) x"
+  ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+     \ (cast_i ((x:A i) * B x) j1 j2 xy : (x:A j2)*B x)"
+  {-
+  ,"forall (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+     \ Eq ((x:A j2)*B x) (cast_i ((x:A i) * B x) j1 j2 xy) \
+     \                   (cast_i (A i) j1 j2 (proj1 xy), cast_i (B {i} (cast_i' (A i') j1 i (proj1 xy))) j1 j2 (proj2 xy))"
+  -}
   ]
 
 -- expressions that shouldn't typecheck
@@ -133,7 +145,7 @@ assert msg False = Left $ msg
 assert _   True = return ()
 
 assertEqual :: (Eq a, Show a) => String -> a -> a -> MyAssertion
-assertEqual msg x y = assert (unlines [msg,"  "++show x,"  "++show y]) (x == y)
+assertEqual msg x y = assert (unlines [msg,"  "++show x,"Not equal to","  "++show y]) (x == y)
 
 assertFailed :: Show a => String -> Either err a -> MyAssertion
 assertFailed _   (Left _) = Right ()
@@ -199,7 +211,7 @@ testExp xStr = do
     xty' <- myTestTcM $ tc (Just ty) x'
     assertEqual "Should be equal" (x',ty) xty'
   -- evaluation (to normal form) should preserve typing
-  xnf <- testPart "Evaluation typing" $ do
+  xnf <- testPart "Evaluation preserves typing" $ do
     xnf <- myTestTcM $ eval NF x'
     (_,ty') <- myTestTcM $ tc (Just ty) xnf
     -- ty and ty' should have the same normal form (we already know that they unify)

@@ -139,6 +139,7 @@ dumpAllMetas =
   text "With metas:" $$ indent 2 (vcat . map (uncurry pprMeta) =<< getAllMetas) $$
   text "With level metas:" $$ indent 2 (vcat . map (uncurry pprLevelMeta) =<< getAllLevelMetas)
 
+infix 1 `annError`
 annError :: (Applicative m, MonadError Doc m) => m a -> m Doc -> m a
 annError x y = catchError x $ \err -> do
   ann <- catchError y (const $ throwError err)
