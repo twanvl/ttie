@@ -109,6 +109,8 @@ goodExpressions =
   ,"forall (A : _ -> Set) j x. Eq _ (cast_i (A i) j j x) x"
   ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ (cast_i ((x:A i) * B x) j1 j2 xy : (x:A j2)*B x)"
+  ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+     \ (cast_i ((x:A i) -> B x) j1 j2 xy : (x:A j2)->B x)"
   {-
   ,"forall (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ Eq ((x:A j2)*B x) (cast_i ((x:A i) * B x) j1 j2 xy) \
@@ -214,6 +216,8 @@ testExp xStr = do
   xnf <- testPart "Evaluation preserves typing" $ do
     xnf <- myTestTcM $ eval NF x'
     (_,ty') <- myTestTcM $ tc (Just ty) xnf
+      `annError` text "Original expression: " $/$ (tcPpr 0 x')
+              $$ text "Normal form expression: " $/$ (tcPpr 0 xnf)
     -- ty and ty' should have the same normal form (we already know that they unify)
     tyNf <- myTestTcM $ eval NF ty
     ty'Nf <- myTestTcM $ eval NF ty'
