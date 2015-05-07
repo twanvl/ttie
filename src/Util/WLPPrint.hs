@@ -867,7 +867,7 @@ displayIO handle simpleDoc
 -----------------------------------------------------------
 instance Show Doc where
   --showsPrec d doc       = displayS (renderPretty 0.4 80 doc)
-  showsPrec d doc       = displayS (renderPretty 0.8 110 doc)
+  showsPrec d doc       = displayS (renderPretty 0.8 120 doc)
 
 -- | The action @(putDoc doc)@ pretty prints document @doc@ to the
 -- standard output, with a page width of 100 characters and a ribbon

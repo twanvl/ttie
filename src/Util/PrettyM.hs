@@ -27,7 +27,7 @@ infixl 5 $/$
 infixr 6 <.>,<+>
 
 showDoc :: Doc -> String
-showDoc = flip PP.displayS "" . PP.renderPretty 0.8 110
+showDoc = flip PP.displayS "" . PP.renderPretty 0.9 120
 
 showsDoc :: Doc -> ShowS
 showsDoc = showString . showDoc
