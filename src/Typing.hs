@@ -115,6 +115,7 @@ unifyMeta swapped mv args y = do
   mx <- metaValue mv args
   case mx of
     Just x  -> swapped unify x y -- x already has a value, unify with that
+      `annError` text "By instantiated meta" $/$ tcPpr 0 x $/$ tcPpr 0 y
     Nothing -> unifyMeta' swapped mv args =<< evalMetas y
 unifyMeta' _ mv args (Meta mv' args') | mv' == mv =
   Meta mv <$> sequenceA (Seq.zipWith unify args args')
@@ -125,9 +126,11 @@ unifyMeta' _swapped mv args y = do
   -- perform occurs check: y must not contain mv
   occursCheck mv y
   -- unify the type of the metavar
-  mv_type <- mvType <$> getMetaVar mv
+  mv_type <- metaType mv args
   (_,y_type) <- tc Nothing y
   _ <- unify mv_type y_type
+      `annError` text "When checking that the type of a meta," <+> tcPpr 0 mv_type
+              $$ text " matches that of the instantiation," <+> tcPpr 0 y_type
   -- y can only use variables that occur in args
   my' <- withMetaContext mv $ unsubst args y
   case my' of
@@ -185,7 +188,14 @@ unify' :: Exp -> Exp -> TcM Exp
 --unify' x y | not (isWHNF x) || not (isWHNF y) = tcError =<< text "unify': arguments not in WHNF:" <+> tcPpr 0 (x,y)
 unify' (Set i) (Set i') = Set <$> unifyLevels i i'
 unify' (Proj p x) (Proj p' x') | p == p' = Proj p <$> unify' x x'
-unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*> (Arg h <$> unify' y y')
+{-unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*> (Arg h <$> unify' y y')
+  `annError` text "When unifying an application" $/$ tcPpr 0 x <+> text "applied to" <+> tcPpr 0 y
+          $$ text " with" $/$ tcPpr 0 x' <+> text "applied to" <+> tcPpr 0 y'-}
+unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> (unify' x x' `ann` "function") <*> (Arg h <$> unify' y y' `ann` "argument of")
+  where
+  ann a b = a `annError`
+        text "When unifying the" <+> text b $/$ tcPpr 0 x <+> text "applied to" <+> tcPpr 0 y
+     $$ text " with" $/$ tcPpr 0 x' <+> text "applied to" <+> tcPpr 0 y'
 unify' (Binder b (Arg h x) y) (Binder b' (Arg h' x') y') | b == b' && h == h' = do
   x'' <- unify x x'
   Binder b (Arg h x'') <$> unifyBound x'' y y'
@@ -197,7 +207,9 @@ unify' (SumElim x ys z) (SumElim x' ys' z') | length ys == length ys' = SumElim 
 unify' (IFlip x) (IFlip x') = IFlip <$> unify' x x'
 unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify y y' <*> unify z z'
 unify' (Meta x args) y = unifyMeta id   x args y
+  `annError` text "When trying to instantiate" <+> tcPpr 0 (Meta x args) <+> text "with" <+> tcPpr 0 y
 unify' y (Meta x args) = unifyMeta flip x args y
+  `annError` text "When trying to instantiate" <+> tcPpr 0 (Meta x args) <+> text "with" <+> tcPpr 0 y
 unify' x y | x == y = return x
 -- eta expansion and surjective pairing?
 unify' (Pair (Arg h x) y z) x' =
