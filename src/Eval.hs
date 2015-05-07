@@ -146,20 +146,21 @@ evalCast s [qq|[$i](Eq [$j](Pi (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
 -}
 --
 evalCast s [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
-  [qq| Refl [$j](Pair (Arg $h (IV u1[i=i2[]] v1[i=i2[]] z1[] j))
-                              (IV u2[i=i2[]] v2[i=i2[]] z2[] j)
+  [qq| Refl [$j](Pair (Arg $h w1[i2=i2[],j])
+                              w2[i2=i2[],j]
                       (Si (Arg $h a[i=i2[],j=j]) [$x]b[i=i2[],j=j,x])) |]
   where
-  yk = [qq|[~j](IV (Si (Arg $h a[i=i1[],j=I1]) [$x]b[i=i1[],j=I1,x])
-                   (Si (Arg $h a[i=i1[],j=I2]) [$x]b[i=i1[],j=I2,x]) y[] j)|] :: Wrap "j" Exp
+  yk = [qq|[~j](IV u[i=i1[]] v[i=i1[]] y[] j)|] :: Wrap "j" Exp
   y1 = [qq|Refl [$j](Proj (Arg $h Proj1) yk)|]
   y2 = [qq|Refl [$j](Proj (Arg $h Proj2) yk)|]
-  z1 = [qq|Cast [$i](Eq [$j]a[i,j       ] u1[i] v1[i]) i1[] i2[] y1[]|]
-  z2 = [qq|Cast [$i](Eq [$j]b[i,j,x=y1[]] u2[i] v2[i]) i1[] i2[] y2[]|]
-  u1 = [qq|[~i](Proj (Arg $h Proj1) u)|] :: Wrap "i" Exp
-  u2 = [qq|[~i](Proj (Arg $h Proj2) u)|]
-  v1 = [qq|[~i](Proj (Arg $h Proj1) v)|]
-  v2 = [qq|[~i](Proj (Arg $h Proj2) v)|]
+  z1 = [qq|[~i2]Cast [$i](Eq [$j]a[i,j]              u1[i] v1[i]) i1[] i2 y1[]|]
+  z2 = [qq|[~i2]Cast [$i](Eq [$j]b[i,j,x=w1[i2=i,j]] u2[i] v2[i]) i1[] i2 y2[]|]
+  w1 = [qq|[~i2][~j] (IV u1[i=i2] v1[i=i2] z1[i2=i2] j)|]
+  w2 = [qq|[~i2][~j] (IV u2[i=i2] v2[i=i2] z2[i2=i2] j)|]
+  u1 = [qq|[~i]Proj (Arg $h Proj1) u|] :: Wrap "i" Exp
+  u2 = [qq|[~i]Proj (Arg $h Proj2) u|]
+  v1 = [qq|[~i]Proj (Arg $h Proj1) v|]
+  v2 = [qq|[~i]Proj (Arg $h Proj2) v|]
 --
 evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
 --

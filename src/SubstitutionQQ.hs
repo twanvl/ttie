@@ -216,7 +216,7 @@ toPat (Var bs _ x ss)
   -- mapping back
   namePat | x == "_"  = wildP
           | otherwise = varP (mkName x)
-  wrapped = foldr (\b -> viewP (wrapQ b)) namePat ss'
+  wrapped = foldr (\b -> viewP (wrapQ b)) namePat (reverse ss')
   unsubst = mkUnsubst [findIndex (b==) (reverse ss') | b <- reverse bs] wrapped
 
 toExp :: GenBind -> ExpQ
@@ -227,7 +227,7 @@ toExp (Var bs bb x ss) = mkSubst (length bs) (map (toExp . snd) (reverse ss')) (
   where
   -- if there is no substitution, then assume that all bound variables are to be substituted
   ss' = fromMaybe (map (\n -> (n,Var bs bb n Nothing)) bs) ss
-  unwrapped = foldr (\(b,_) -> appE (unwrapQ b)) (varE (mkName x)) ss'
+  unwrapped = foldr (\(b,_) -> appE (unwrapQ b)) (varE (mkName x)) (reverse ss')
 
 qq :: QuasiQuoter
 qq = QuasiQuoter

@@ -111,11 +111,17 @@ goodExpressions =
      \ (cast_i ((x:A i) * B x) j1 j2 xy : (x:A j2)*B x)"
   ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ (cast_i ((x:A i) -> B x) j1 j2 xy : (x:A j2)->B x)"
-  {-
   ,"forall (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ Eq ((x:A j2)*B x) (cast_i ((x:A i) * B x) j1 j2 xy) \
      \                   (cast_i (A i) j1 j2 (proj1 xy), cast_i (B {i} (cast_i' (A i') j1 i (proj1 xy))) j1 j2 (proj2 xy))"
-  -}
+  -- cast (Eq ...)
+  ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
+     \ (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)*B x) (u j2) (v j2))"
+  ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
+     \refl_j (iv (proj1 (u j2)) (proj1 (v j2)) \
+     \           (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 (iv (u j1) (v j1) xy j)))) \
+     \           j, \
+     \ iv _ _ (cast_i (Eq_j (B {i} {j} (iv _ _ (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 i (refl_j (proj1 (iv (u j1) (v j1) xy j)))) j)) (proj2 (u i)) (proj2 (v i))) j1 j2 (refl_j (proj2 (iv (u j1) (v j1) xy j)))) j : (x:A j2 j) * B x)"
   ]
 
 -- expressions that shouldn't typecheck
