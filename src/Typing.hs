@@ -26,16 +26,20 @@ import qualified Data.IntMap as IM
 --------------------------------------------------------------------------------
 
 -- | Transfer an expression to a different context, essentially the inverse of substitution.
+--
+-- In particular, transfer an expression x0 to the current context,
+-- where the args specify how to represent the variables in x0 in the current context.
+-- 
 -- This is a generalization of unsubstN.
 -- Can unsubst metas ?1[a,b,c] when b can not be represented in the target
-unsubst :: Seq Exp -> Exp -> TcM (Maybe Exp)
+unsubst :: Seq Exp -> Exp -> TcM Exp
 unsubst xs x0 = do
   l0 <- boundDepth
   if l0 /= Seq.length xs
     then error "Internal error: depth doesn't match number of arguments"
     else unsubst' l0 (invCtxMap xs) x0
 
-unsubst' :: Int -> PartialCtxMap Exp -> Exp -> TcM (Maybe Exp)
+unsubst' :: Int -> PartialCtxMap Exp -> Exp -> TcM Exp
 unsubst' l0 vars x0 = go x0
   where
   go x = do
@@ -43,31 +47,33 @@ unsubst' l0 vars x0 = go x0
       x' <- evalMetas x
       case x' of
         Var i
-          | i < l     -> return $ Just $ Var i
-          | otherwise -> return $ raiseBy l <$> IM.lookup (i-l) vars
-        Meta mv args -> do
-          margs' <- mapM go args
-          case sequence margs' of
-            Just args' -> return $ Just $ Meta mv args'
-            Nothing -> do
-              -- we don't have to give up, we can replace ?1[#0,#1,#2,#3] by ?2[#0,#1] if e.g. #1 is not in vars
-              -- i.e. keep only the Just arguments
-              mval <- getMetaVar mv
-              simpler <- filterCtx margs' (mvArgs mval) (mvType mval)
-              case simpler of
-                Nothing -> return Nothing
-                Just (vars',args',tys',ty') -> do
-                  -- make a new meta with only a subset of the context
-                  mv' <- freshMetaVar (MVExp Nothing ty' tys')
-                  -- let mv point to mv' (with a subset of the arguments)
-                  modifyMetaVar mv $ \val -> val { mvValue = Just $ Meta mv' vars' }
-                  {-
-                  traceM $ "Unifying metas: " ++ show mv ++ " --> " ++ show mv'
-                  traceM $ "Forwarded as " ++ show mv ++ " = " ++ show (Meta mv' vars')
-                  traceM $ "Returned as " ++ show (Meta mv args) ++ " ~= " ++ show (Meta mv' args') ++ " by " ++ show vars
-                  -}
-                  return $ Just $ Meta mv' args'
-        _ -> runMaybeT $ traverseChildren (MaybeT . go) x'
+          | i < l     -> return $ Var i
+          | otherwise -> case IM.lookup (i-l) vars of
+                           Just v  -> return $ raiseBy l v
+                           Nothing -> tcError =<< text "Variable not in scope of meta:" <+> tcPpr 0 x'
+        Meta mv args -> traverseMetaWithMaybeArgs go mv args
+        _ -> traverseChildren go x'
+
+-- Traverse the arguments of a meta, but in case of failure, instead of giving up
+-- try to instantiate the meta with a simpler one.
+traverseMetaWithMaybeArgs :: (Exp -> TcM Exp) -> MetaVar -> Seq Exp -> TcM Exp
+traverseMetaWithMaybeArgs f mv oldArgs = do
+  margs <- mapM (orElseNothing . f) oldArgs
+  metaWithMaybeArgs mv margs
+
+metaWithMaybeArgs :: MetaVar -> Seq (Maybe Exp) -> TcM Exp
+metaWithMaybeArgs mv margs | Just args <- sequence margs = return $ Meta mv args
+metaWithMaybeArgs mv margs = do
+  -- we might have instantiated mv in the process of evaluating the args
+  mval <- getMetaVar mv
+  when (isJust (mvValue mval)) $
+    tcError =<< text "Meta variable was instantiated while evaluating arguments to that meta variable"
+  -- make a new meta with only a subset of the context
+  (vars',args',tys',ty') <- filterCtx margs (mvArgs mval) (mvType mval)
+  mv' <- freshMetaVar (MVExp Nothing ty' tys')
+  -- let mv point to mv' (with a subset of the arguments)
+  modifyMetaVar mv $ \val -> val { mvValue = Just $ Meta mv' vars' }
+  return $ Meta mv' args'
 
 -- Suppose we are trying to abstract  (?2[#0,#1,#2] -> bar) to assign it to ?1[#0,foo #0,#3]
 -- which means that we map #0->#0, #1->Nothing, #2->#3
@@ -79,22 +85,22 @@ unsubst' l0 vars x0 = go x0
 filterCtx :: Seq (Maybe a) -- ^ arguments to keep (those for which we have a representation in the target context)
           -> Seq (Named Exp) -- ^ Original argument types
           -> Exp -- ^ original result type
-          -> TcM (Maybe (Seq Exp, Seq a, Seq (Named Exp), Exp))
+          -> TcM (Seq Exp, Seq a, Seq (Named Exp), Exp)
 filterCtx xs0 tys0 ty0 = withCtx Seq.empty $ go Seq.empty xs0 tys0
   where
   -- vars gives for each variable in the context the corresponding index in tys
   go vars (xs :> Just x) (tys :> Named n ty) = do
-    mty' <- unsubst vars ty
+    mty' <- orElseNothing (unsubst vars ty)
     case mty' of
       Nothing  -> go vars xs tys
       Just ty' -> do
-        map (\(vars',xs',tys',ty0') -> (vars', xs' |> x, tys' |> Named n ty', ty0'))
-          <$> localBound (Named n ty') (go (Var 0 <| map (raiseBy 1) vars) xs tys)
+        (vars',xs',tys',ty0') <- localBound (Named n ty') (go (Var 0 <| map (raiseBy 1) vars) xs tys)
+        return (vars', xs' |> x, tys' |> Named n ty', ty0')
   go vars (xs :> Nothing) (tys :> _ty) = do
     go (map (raiseBy 1) vars) xs tys
   go vars _ _ = do
-    map (\ty0' -> (vars,Seq.empty,Seq.empty,ty0'))
-      <$> unsubst vars ty0
+    ty0' <- unsubst vars ty0
+    return (vars,Seq.empty,Seq.empty,ty0')
 
 --------------------------------------------------------------------------------
 -- Unification
@@ -117,8 +123,13 @@ unifyMeta swapped mv args y = do
     Just x  -> swapped unify x y -- x already has a value, unify with that
       `annError` text "By instantiated meta" $/$ tcPpr 0 x $/$ tcPpr 0 y
     Nothing -> unifyMeta' swapped mv args =<< evalMetas y
-unifyMeta' _ mv args (Meta mv' args') | mv' == mv =
-  Meta mv <$> sequenceA (Seq.zipWith unify args args')
+unifyMeta' _ mv args (Meta mv' args') | mv' == mv = do
+  -- we are unifying ?mv[x,y,z] with ?mv[x',y',z']
+  -- this is easy if we can unify x with x', y with y', etc.
+  -- but if one of these unifications fails, then instead of failing alltogether,
+  -- ?mv should just not depend on that argument
+  margs <- sequenceA $ map orElseNothing $ Seq.zipWith unify args args'
+  metaWithMaybeArgs mv margs
 unifyMeta' swapped mv args (Meta mv' args') | Seq.length args < Seq.length args' =
   -- unify the other way around, otherwise unsubstN will fail
   unifyMeta' (flip . swapped) mv' args' (Meta mv args)
@@ -132,14 +143,12 @@ unifyMeta' _swapped mv args y = do
       `annError` text "When checking that the type of a meta," <+> tcPpr 0 mv_type
               $$ text " matches that of the instantiation," <+> tcPpr 0 y_type
   -- y can only use variables that occur in args
-  my' <- withMetaContext mv $ unsubst args y
-  case my' of
-    Nothing -> tcError =<< text "Variables not in scope of meta"
-                           $$ indent 2 (tcPpr 0 (Meta mv args))
-                           $$ indent 2 (tcPpr 0 y)
-    Just y' -> do
-      modifyMetaVar mv $ \val -> val { mvValue = Just y' }
-      return y
+  y' <- (withMetaContext mv $ unsubst args y)
+    `annError` text "When trying to instantiate meta"
+               $$ indent 2 (tcPpr 0 (Meta mv args))
+               $$ indent 2 (tcPpr 0 y)
+  modifyMetaVar mv $ \val -> val { mvValue = Just y' }
+  return y
 
 -- | Rexpress x in terms of the local context
 --(Int -> Maybe ) -> Exp -> TcM Exp

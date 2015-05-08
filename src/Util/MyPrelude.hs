@@ -185,6 +185,9 @@ mx <&&> my = mx >>= (&&> my)
 andM :: Monad m => [m Bool] -> m Bool
 andM = foldr (<&&>) (return True)
 
+orElseNothing :: (Applicative m, MonadError e m) => m a -> m (Maybe a)
+orElseNothing x = catchError (Just <$> x) (\_ -> pure Nothing)
+
 --------------------------------------------------------------------------------
 -- Show utilities
 --------------------------------------------------------------------------------

@@ -253,10 +253,10 @@ metaValue mv args = fmap (substsN args) . mvValue <$> getMetaVar mv
 -- Evaluate metas at the top
 evalMetas :: Exp -> TcM Exp
 evalMetas x@(Meta mv args) = do
-  x' <- metaValue mv args
-  case x' of
-    Nothing  -> pure x
-    Just x'' -> evalMetas x''
+  mx' <- metaValue mv args
+  case mx' of
+    Nothing -> pure x
+    Just x' -> evalMetas x'
 evalMetas x = pure x
 
 -- Evaluate all metas, give an error for unresolved ones
