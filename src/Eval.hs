@@ -162,7 +162,7 @@ evalCast s [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
   v1 = [qq|[~i]Proj (Arg $h Proj1) v|]
   v2 = [qq|[~i]Proj (Arg $h Proj2) v|]
 --
-evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
+--evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
 --
 evalCast _ a j1 j2 x = pure $ Cast a j1 j2 x
 
