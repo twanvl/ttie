@@ -50,7 +50,7 @@ unsubst' l0 vars x0 = go x0
           | i < l     -> return $ Var i
           | otherwise -> case IM.lookup (i-l) vars of
                            Just v  -> return $ raiseBy l v
-                           Nothing -> tcError =<< text "Variable not in scope of meta:" <+> tcPpr 0 x'
+                           Nothing -> tcError =<< text "Variable not in scope of meta:" <+> ppr 0 (i-l)
         Meta mv args -> traverseMetaWithMaybeArgs go mv args
         _ -> traverseChildren go x'
 
@@ -225,7 +225,7 @@ unify' (Pair (Arg h x) y z) x' =
   Pair <$> (Arg h <$> unify x (Proj (Arg h Proj1) x')) <*> unify y (Proj (Arg h Proj2) x') <*> pure z
 unify' x (Pair (Arg h x') y' z') =
   Pair <$> (Arg h <$> unify (Proj (Arg h Proj1) x) x') <*> unify (Proj (Arg h Proj2) x) y' <*> pure z'
---unify' [qq| Lam (Arg h x) [$u](App y[] u)|] x' = 
+--unify' [qq| Lam (Arg h x) [$u](App y[] u)|] x' =            [qq| [$n](App f[] (Arg $h n))|] where n = ""
 unify' (Lam (Arg h x) y) f = Lam (Arg h x) <$> unifyBound x y (Bound "" (App (raiseBy 1 f) (Arg h (Var 0))))
 unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x (Bound "" (App (raiseBy 1 f) (Arg h (Var 0)))) y
 --unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x [qq| [$n] App f[] (Arg h n)|] y
