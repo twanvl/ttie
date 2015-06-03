@@ -97,8 +97,8 @@ evalEq _ x y z = Eq x y z
 
 --evalFw s [qq|Refl [$_n]x[] |] y = y
 evalCast :: EvalEnv -> Bound Exp -> Exp -> Exp -> Exp -> Exp
-evalCast _ _ I1 I1 y = y
-evalCast _ _ I2 I2 y = y
+--evalCast _ _ I1 I1 y = y
+--evalCast _ _ I2 I2 y = y
 evalCast _ _ j1 j2 y | j1 == j2 = y
 evalCast _ (NotBound _) _ _ y = y
 --

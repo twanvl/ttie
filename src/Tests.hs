@@ -111,15 +111,20 @@ goodExpressions =
      \ (cast_i ((x:A i) * B x) j1 j2 xy : (x:A j2)*B x)"
   ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ (cast_i ((x:A i) -> B x) j1 j2 xy : (x:A j2)->B x)"
-  ,"forall (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
-     \ Eq ((x:A j2)*B x) (cast_i ((x:A i) * B x) j1 j2 xy) \
-     \                   (cast_i (A i) j1 j2 (proj1 xy), cast_i (B {i} (cast_i' (A i') j1 i (proj1 xy))) j1 j2 (proj2 xy))"
+  ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+     \ refl _ : Eq ((x:A j2)*B x) \
+     \             (cast_i ((x:A i) * B x) j1 j2 xy) \
+     \             (cast_i (A i) j1 j2 (proj1 xy), cast_i (B {i} (cast_i' (A i') j1 i (proj1 xy))) j1 j2 (proj2 xy))"
+  ,"\\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+     \ refl _ : Eq ((x:A j2) -> B x) \
+     \             (cast_i ((x:A i) -> B x) j1 j2 xy) \
+     \             (\\(x:A j2) -> cast_i (B {i} (cast_i (A i) j2 i x)) j1 j2 (xy (cast_i (A i) j2 j1 x)) )"
   ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \ (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)*B x) (u j2) (v j2))"
   ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
-     \ (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)->B x) (u j2) (v j2))"
+     \ (cast_i (Eq_j ((x:A i j)->B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)->B x) (u j2) (v j2))"
   -- cast (Eq (A*B))
-  ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
+  {-,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \refl_j (iv (proj1 (u j2)) (proj1 (v j2)) \
      \           (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 (iv (u j1) (v j1) xy j)))) \
      \           j, \
@@ -140,14 +145,14 @@ goodExpressions =
      \refl_j (cast_i (Eq_k (A i k) (cast_i (A i i1) j1 i (proj1 xy^i1)) \
      \                             (cast_i (A i i2) j1 i (proj1 xy^i2))) j1 j2 \
      \               (refl_k (proj1 xy^k)) )^j"
-  
+  -}
   -- cast (Eq (A->B))
   ,"{-ar-eq-}\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
      \ refl_j (\\(x:A j2 j) -> cast_i (B {i} {j} (cast_i (A i j) j2 i x)) j1 j2 (xy^j (cast_i (A i j) j2 j1 x)) ), \
      \  refl_j (\\(x:A j2 j) -> xy^j (cast_i (A i j) j2 j1 x) ), \
      \  refl_j (\\(x:A j2 j) -> refl_k (cast_j (A j2 j) j k x) ){-, \
      \  refl_j (\\(x:A j2 j) -> cast_i (Eq_j (A i j) (cast_j (A i j) j2 i1 x) (cast_j (A i j) j2 i1 x)) j2 j1 (refl_k (cast_k (A j2 j) j k x)) )-}"
-  ,"{-ar-ty-} \\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) (j1 j2 j : Interval) x. \
+  {-,"{-ar-ty-} \\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) (j1 j2 j : Interval) x. \
      \\\(y : B {j1} {j} (cast_i (A i j) j2 j1 x)) -> \
      \  cast_i (B {i} {j} (cast_i (A i j) j2 i x)) j1 j2 y"
   ,"{-ar-ott1-} \\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v (j1 j2 : Interval) (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
@@ -201,6 +206,7 @@ goodExpressions =
      \ refl_j0 (\\x -> xy^j0 (cast_i (Eq_j (A i j) (cast_i (A i i1) j2 i (cast_k (A j2 k) j0 i1 x)) \
      \                                             (cast_i (A i i2) j2 i (cast_k (A j2 k) j0 i2 x))) j2 j1 \
      \                               (refl_j (cast_k (A j2 k) j0 j x)) )^j0)"
+     -}
   ]
   {-
   cast A (proj1 x) becomes (cast (Eq A) (refl_i (proj1 x)))^i
