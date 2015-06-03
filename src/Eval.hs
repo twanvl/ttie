@@ -102,16 +102,38 @@ evalCast :: EvalEnv -> Bound Exp -> Exp -> Exp -> Exp -> Exp
 evalCast _ _ j1 j2 y | j1 == j2 = y
 evalCast _ (NotBound _) _ _ y = y
 --
-evalCast e [qq|[$i](Pi (Arg $h a) [$x]b)|] j1 j2 y = evalMore e
+{-evalCast e [qq|[$i](Pi (Arg $h a) [$x]b)|] j1 j2 y = evalMore e
   [qq| Lam (Arg $h a[i=j2[]]) [$x]
        (Cast ([$i]b[i,x=Cast ([$i]a[i]) j2[] i x]) j1[] j2[]
              (App y[] (Arg $h (Cast ([$i]a[i]) j2[] j1[] x)))) |]
+-}
 --
+{-
 evalCast e [qq|[$i](Si (Arg $h a) [$x]b)|] j1 j2 y = evalMore e
   [qq| Pair (Arg $h (Cast [$i]a j1[] j2[] (Proj (Arg $h Proj1) y)))
                     (Cast [$i]b[i,x=Cast [$i]a[i] j1[] i (Proj (Arg $h Proj1) y[])]
                           j1[] j2[] (Proj (Arg $h Proj2) y))
             (Si (Arg $h a[i=j2[]]) [$x]b[i=j2[],x]) |]
+-}
+--
+evalCast e (Bound i (Pi (Arg h a) (Bound x b))) j1 j2 f =
+  Lam (Arg h (subst1 j2 a)) (Bound x fx'')
+  where
+  x'   = evalCast e (Bound i $ raiseAtBy 1 1 a) (raiseBy 1 j2) (raiseBy 1 j1) (Var 0)
+  xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0)        (Var 1)
+  fx'  = App (raiseBy 1 f) (Arg h x')
+  fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
+--
+evalCast e (Bound i (Si (Arg h a) b)) j1 j2 y =
+  Pair (Arg h y1') y2' (Si (Arg h (subst1 j2 a)) (fmap (substRaiseAt 1 j2) b))
+  where
+  proj1 = evalProj e (Arg h Proj1)
+  proj2 = evalProj e (Arg h Proj2)
+  y1 = proj1 y
+  y2 = proj2 y
+  y1' = evalCast e (Bound i a) j1 j2 y1
+  y1i = evalCast e (Bound i $ raiseAtBy 1 1 a) (raiseBy 1 j1) (Var 0) (raiseBy 1 y1)
+  y2' = evalCast e (Bound i $ substBound b y1i) j1 j2 y2
 --
 evalCast e [qq|[$i](SumTy xs)|] j1 j2 (SumVal n y _)
   | Just ty <- traverse (map ctorType . find ((==n) . ctorName)) xs

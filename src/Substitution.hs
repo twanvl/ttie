@@ -39,6 +39,10 @@ raiseBy 0 x = x
 raiseBy n (unVar -> Just x) = var (n + x)
 raiseBy n x = mapExp (\i -> var (n + i)) x
 
+-- raiseAtBy a b = raiseSubst b [var 0, var 1, var 2, .., var (a-1)]
+raiseAtBy :: Subst a => Int -> Int -> a -> a
+raiseAtBy m n = mapExp (\i -> if i < m then var i else var (n + i))
+
 raiseSubsts :: Subst a => Int -> [a] -> (a -> a)
 raiseSubsts n = mapExp . substsVar
   where
@@ -65,6 +69,9 @@ substAt n x = mapExp substVar
   substVar i | i < n     = var i
              | i == n    = x
              | otherwise = var (i-1)
+
+substRaiseAt :: Subst a => Int -> a -> (a -> a)
+substRaiseAt n x = substAt n (raiseBy n x)
 
 substsN :: Subst a => Seq a -> (a -> a)
 substsN Empty = id

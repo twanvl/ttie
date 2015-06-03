@@ -51,7 +51,7 @@ data Bound a = Bound
   --, boundFree :: Names -- names free in the body
   , boundBody :: a
   }
-  deriving (Show)
+  deriving (Show,Functor)
 -- Note: Bound is not Traversible, to prevent mistakes wrt. keeping track of the bound values
 -- see TraverseBound class below
 
