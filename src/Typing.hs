@@ -176,8 +176,8 @@ unify :: Exp -> Exp -> TcM Exp
 unify x y =
   unify' x y -- first try to unify without evaluation
   `catchError` \err -> do
-    x' <- eval WHNF x
-    y' <- eval WHNF y
+    x' <- tcEval WHNF x
+    y' <- tcEval WHNF y
     unless (isWHNF x') $ error $ "eval didn't produce WHNF: " ++ show x'
     unless (isWHNF y') $ error $ "eval didn't produce WHNF: " ++ show y'
     if x /= x' || y /= y'
@@ -264,7 +264,7 @@ unifySet x = do
 
 -- | Unify x with (Binder b (Arg h _) _)
 unifyBinder, unifyBinder' :: Binder -> Hiding -> Exp -> TcM (Exp, Bound Exp)
-unifyBinder b h = unifyBinder' b h <=< eval WHNF
+unifyBinder b h = unifyBinder' b h <=< tcEval WHNF
 unifyBinder' b h (Binder b' (Arg h' x) y) | b == b' && h == h' = return (x,y)
 unifyBinder' b h xy = do
   x <- freshMetaSet
@@ -296,7 +296,7 @@ unifySumTy ty = tcError =<< text "Expected a sum type instead of" $/$ tcPpr 0 ty
 
 -- Apply x of type ty to all expected hidden arguments if hiding=Visible
 applyHidden :: Hiding -> Exp -> Exp -> TcM (Exp,Exp)
-applyHidden Visible x ty = applyHidden' x =<< eval WHNF ty
+applyHidden Visible x ty = applyHidden' x =<< tcEval WHNF ty
 applyHidden Hidden  x ty = return (x,ty)
 
 applyHidden' :: Exp -> Exp -> TcM (Exp,Exp)
@@ -304,17 +304,17 @@ applyHidden' x (Pi (Arg Hidden u) v) = do
   arg <- freshMeta u
   let x'  = App x (hidden arg)
   let ty' = substBound v arg
-  applyHidden' x' =<< eval WHNF ty'
+  applyHidden' x' =<< tcEval WHNF ty'
 applyHidden' x (Si (Arg Hidden _) v) = do
   let x'  = Proj (hidden Proj2) x
   let ty' = substBound v (Proj (hidden Proj1) x)
-  applyHidden' x' =<< eval WHNF ty'
+  applyHidden' x' =<< tcEval WHNF ty'
 applyHidden' x ty = return (x,ty)
 
 -- Ensure that x of type ty takes enough hidden arguments
 {-
 wrapHidden :: Hiding -> Exp -> Exp -> TcM (Exp,Exp)
-wrapHidden Visible x ty = wrapHidden' x =<< eval WHNF ty
+wrapHidden Visible x ty = wrapHidden' x =<< tcEval WHNF ty
 wrapHidden Hidden  x ty = return (x,ty)
 
 wrapHidden' :: Exp -> Exp -> TcM (Exp,Exp)
@@ -322,7 +322,7 @@ wrapHidden' x (Pi (Arg Hidden u) v) = do
   Lam (Arg Hidden u)
   let x'  = App x (hidden arg)
   let ty' = substBound v arg
-  (x' <- wrapHidden' x' =<< eval WHNF v
+  (x' <- wrapHidden' x' =<< tcEval WHNF v
 wrapHidden' x ty = pure (x,ty)
 -}
 
@@ -369,7 +369,7 @@ tc Nothing (TypeSig x y) = do
 tc (Just (Pi (Arg Hidden x) (Bound n y))) z@(Lam (Arg Visible _) _) = do
   -- wrap in \{_} -> ..
   (z',y') <- localBound (named n x) $ do
-    y' <- eval WHNF y
+    y' <- tcEval WHNF y
     tc (Just y') (raiseBy 1 z)
   return (Lam (Arg Hidden x) (Bound n z'), Pi (Arg Hidden x) (Bound n y'))
 tc (Just (Pi (Arg h x) (Bound n y))) (Lam (Arg h' x') (Bound n' z)) | h == h' = do

@@ -250,6 +250,10 @@ metaType mv args = substsN args . mvType <$> getMetaVar mv
 metaValue :: MetaVar -> Seq Exp -> TcM (Maybe Exp)
 metaValue mv args = fmap (substsN args) . mvValue <$> getMetaVar mv
 
+metaValues :: TcM (MetaVar -> Seq Exp -> Maybe Exp)
+metaValues = do
+  TcM $ gets $ \st mv args -> fmap (substsN args) . mvValue $ TS.get mv (usMetas st)
+
 -- Evaluate metas at the top
 evalMetas :: Exp -> TcM Exp
 evalMetas x@(Meta mv args) = do

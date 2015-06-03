@@ -184,6 +184,8 @@ class TraverseChildren exp a where
   traverseChildren :: MonadBound exp f => (exp -> f exp) -> (a -> f a)
   traverseChildren_ :: MonadBound exp f => (exp -> f ()) -> (a -> f ())
   traverseChildren_ f = fmap getConst . getCompose . traverseChildren (Compose . fmap Const . f)
+  mapChildren :: (exp -> exp) -> (a -> a)
+  mapChildren f = runIdentity . traverseChildren (Identity . f)
 
 instance TraverseChildren exp a => TraverseChildren exp (Arg a) where
   traverseChildren f x = traverse (traverseChildren f) x

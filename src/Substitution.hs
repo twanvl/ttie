@@ -59,6 +59,13 @@ substs = raiseSubsts 0
 subst1 :: Subst a => a -> (a -> a)
 subst1 x = substs [x]
 
+substAt :: Subst a => Int -> a -> (a -> a)
+substAt n x = mapExp substVar
+  where
+  substVar i | i < n     = var i
+             | i == n    = x
+             | otherwise = var (i-1)
+
 substsN :: Subst a => Seq a -> (a -> a)
 substsN Empty = id
 substsN xs = mapExp $ \i -> if i < Seq.length xs

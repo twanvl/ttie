@@ -114,9 +114,11 @@ goodExpressions =
   ,"forall (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ Eq ((x:A j2)*B x) (cast_i ((x:A i) * B x) j1 j2 xy) \
      \                   (cast_i (A i) j1 j2 (proj1 xy), cast_i (B {i} (cast_i' (A i') j1 i (proj1 xy))) j1 j2 (proj2 xy))"
-  -- cast (Eq (A*B))
   ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \ (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)*B x) (u j2) (v j2))"
+  ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
+     \ (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)->B x) (u j2) (v j2))"
+  -- cast (Eq (A*B))
   ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \refl_j (iv (proj1 (u j2)) (proj1 (v j2)) \
      \           (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 (iv (u j1) (v j1) xy j)))) \
@@ -125,6 +127,20 @@ goodExpressions =
   ,"\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \refl_j (cast_i (A i j) j1 j2 (proj1 (iv (u j1) (v j1) xy j))), \
      \refl_j (iv _ _ (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 (iv (u j1) (v j1) xy j)))) j)"
+  
+  ,"{-si-eq-}\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
+     \refl_j ((cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 xy^j)))^j),\
+     \refl_j (cast_i (A i j) j1 j2 (proj1 xy^j)),\
+     \refl_j (cast_i (Eq_k (A i k) (cast_i (A i i1) j1 i (cast_j (A j1 j) j i1 (proj1 xy^j))) \
+     \                             (cast_i (A i i2) j1 i (cast_j (A j1 j) j i2 (proj1 xy^j)))) j1 j2 \
+     \               (refl_k (cast_j (A j1 j) j k (proj1 xy^j))))^j,\
+     \refl_j (cast_i (Eq_k (A i k) (proj1 (u i)) \
+     \                             (proj1 (v i)))  j1 j2 \
+     \               (refl_k (cast_j (A j1 j) j k (proj1 xy^j))))^j,\
+     \refl_j (cast_i (Eq_k (A i k) (cast_i (A i i1) j1 i (proj1 xy^i1)) \
+     \                             (cast_i (A i i2) j1 i (proj1 xy^i2))) j1 j2 \
+     \               (refl_k (proj1 xy^k)) )^j"
+  
   -- cast (Eq (A->B))
   ,"{-ar-eq-}\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
      \ refl_j (\\(x:A j2 j) -> cast_i (B {i} {j} (cast_i (A i j) j2 i x)) j1 j2 (xy^j (cast_i (A i j) j2 j1 x)) ), \
@@ -163,7 +179,35 @@ goodExpressions =
      \ j1 j2 \
      \ (refl_j (xy^j (cast_i (Eq_j (A i j) (cast_i (A i i1) j2 i x1) (cast_i (A i i2) j2 i x2)) j2 j1 x12)^j))) \
      \ {cast_k (A j2 k) i0 i1 x} {cast_k (A j2 k) i0 i2 x} (refl_j (cast_k (A j2 k) i0 j x)))^i0) "
+  ,"{-ar-ott5-} \\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v (j1 j2 : Interval) (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
+     \ refl_j0 (\\x -> \
+     \ (cast_k (Eq_j \
+     \    (B {k} {j} \
+     \       (iv                       (cast_i (A i i1) j2 k (cast_k (A j2 k) j0 i1 x)) \
+     \                                 (cast_i (A i i2) j2 k (cast_k (A j2 k) j0 i2 x)) \
+     \           (cast_i (Eq_j (A i j) (cast_i (A i i1) j2 i (cast_k (A j2 k) j0 i1 x)) \
+     \                                 (cast_i (A i i2) j2 i (cast_k (A j2 k) j0 i2 x))) j2 k \
+     \                   (refl_j (cast_k (A j2 k) j0 j x))) \
+     \          j)) \
+     \    (u k (cast_i (A i i1) j2 k (cast_k (A j2 k) j0 i1 x))) \
+     \    (v k (cast_i (A i i2) j2 k (cast_k (A j2 k) j0 i2 x)))) \
+     \ j1 j2 \
+     \ (refl_j (xy^j (cast_i (Eq_j (A i j) (cast_i (A i i1) j2 i (cast_k (A j2 k) j0 i1 x)) \
+     \                                     (cast_i (A i i2) j2 i (cast_k (A j2 k) j0 i2 x))) j2 j1 \
+     \                       (refl_j (cast_k (A j2 k) j0 j x)) )^j)) \
+     \ )^j0) "
+  ,"{-ar-ott6-} \\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v (j1 j2 : Interval) (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
+     \ refl_j0 (\\x -> xy^j0 (cast_i (A i j0) j2 j1 x)),\
+     \ refl_j0 (\\x -> xy^j0 (cast_i (Eq_j (A i j) (cast_i (A i i1) j2 i (cast_k (A j2 k) j0 i1 x)) \
+     \                                             (cast_i (A i i2) j2 i (cast_k (A j2 k) j0 i2 x))) j2 j1 \
+     \                               (refl_j (cast_k (A j2 k) j0 j x)) )^j0)"
   ]
+  {-
+  cast A (proj1 x) becomes (cast (Eq A) (refl_i (proj1 x)))^i
+  cast A x becomes cast (Eq A) (refl_i x^i)
+  From (x : A i) You can go to (refl_i' (cast_i (A i) i' i x) : Eq_i A (cast_i A i i1 x) (cast_i A i i2 x))
+  -- can you do a two step thing?
+  -}
 
 -- expressions that shouldn't typecheck
 badExpressions :: [String]
@@ -251,8 +295,8 @@ testExp xStr = do
   -- and the modified expression should yield the same type
   testPart "Type inference of expanded expression" $ do
     (x'',ty') <- myTestTcM $ tc Nothing x'
-    tyNf <- myTestTcM $ eval NF ty
-    ty'Nf <- myTestTcM $ eval NF ty'
+    tyNf <- myTestTcM $ tcEval NF ty
+    ty'Nf <- myTestTcM $ tcEval NF ty'
     assertEqual "Values should be equal" x' x''
     assertEqual "Types should be equal" tyNf ty'Nf
   -- and we should also be able to typecheck it
@@ -261,25 +305,25 @@ testExp xStr = do
     assertEqual "Should be equal" (x',ty) xty'
   -- evaluation (to normal form) should preserve typing
   xnf <- testPart "Evaluation preserves typing" $ do
-    xnf <- myTestTcM $ eval NF x'
+    xnf <- myTestTcM $ tcEval NF x'
     (_,ty') <- myTestTcM $ tc (Just ty) xnf
       `annError` text "Original expression: " $/$ (tcPpr 0 x')
               $$ text "Normal form expression: " $/$ (tcPpr 0 xnf)
     -- ty and ty' should have the same normal form (we already know that they unify)
-    tyNf <- myTestTcM $ eval NF ty
-    ty'Nf <- myTestTcM $ eval NF ty'
+    tyNf <- myTestTcM $ tcEval NF ty
+    ty'Nf <- myTestTcM $ tcEval NF ty'
     assertEqual "Should have same type in normal form" tyNf ty'Nf
     return xnf
   -- eval NF should also give a normal form
   testPart "Normal form" $ do
-    xnf' <- myTestTcM $ eval NF xnf
+    xnf' <- myTestTcM $ tcEval NF xnf
     assertEqual "eval NF should give normal form" xnf xnf'
   -- all the ways to evaluate x to normal form should give the same result
   testPart "Evaluation" $ do
     return ()
   -- return some info
   --return ""
-  tyNf <- myTestTcM $ eval NF ty
+  tyNf <- myTestTcM $ tcEval NF ty
   return $ show tyNf
 
 testBadExp :: String -> Either String ()

@@ -86,6 +86,12 @@ data Decl
     { declLHS :: Exp
     , declRHS :: Exp
     }
+  {-| DataDecl
+    { declName  :: Name
+    , declArgs  :: Telescope
+    , declType  :: Exp
+    , declCtors :: 
+    }-}
 
 {-
 -- Data types
@@ -317,6 +323,7 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ (SumElim x ys _) = group $ text "case" <+> ppr 0 x <+> text "of" <+> semiBraces (map (ppr 0) ys)
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
   ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
+  --ppr p (Pair x y z) = group $ parenIf (p > 0) $ align $ ppr 3 x <.> text "," $$ ppr 2 y $/$ text ":" <+> ppr 0 z
   ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
     Bound "" x' -> align $ text "Eq"             $/$ localBound (unnamed Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
     Bound n x'  -> align $ text "Eq_" <.> text n $/$ localBound (named n Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
