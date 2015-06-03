@@ -167,7 +167,7 @@ unifyLevels' x y | x == y = pure x
 unifyLevels' (MetaLevel x) y = unifyLevelMeta id   x y
 unifyLevels' x (MetaLevel y) = unifyLevelMeta flip y x
 unifyLevels' x y = do
-  tcError =<< text "Failed to unify" <+> tcPpr 11 (Set x) <+> text "with" <+> tcPpr 11 (Set y)
+  tcError =<< group (text "Failed to unify" <+> tcPpr 11 (Set x) $/$ text "with" <+> tcPpr 11 (Set y))
 
 -- | Unify two expressions.
 -- requires that the expressions have the same type
@@ -233,7 +233,7 @@ unify' [qq|Refl [$_i](IV _ _ x[] _i)|] x' = unify x x'
 unify' x [qq|Refl [$_i](IV _ _ x'[] _i)|] = unify x x'
 
 unify' x y = do
-  tcError =<< text "Failed to unify" <+> tcPpr 11 x <+> text "with" <+> tcPpr 11 y
+  tcError =<< group (text "Failed to unify" <+> tcPpr 11 x $/$ text "with" <+> tcPpr 11 y)
 
 unifyName :: Name -> Name -> Name
 unifyName "" n = n
