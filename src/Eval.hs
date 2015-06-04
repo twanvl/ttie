@@ -31,7 +31,7 @@ data EvalEnv = EvalEnv
   }
 
 eval :: EvalEnv -> Exp -> Exp
-eval (evalStrategy->WHNF) x@(Pair _ _ _) = x
+eval (evalStrategy->WHNF) x@(Pair _ _ _ _) = x
 eval (evalStrategy->WHNF) x@(Binder _ _ _) = x
 eval e (Meta x xs) = evalMeta e x xs
 eval (evalStrategy->MetaOnly) x = x
@@ -41,7 +41,7 @@ eval e x = evalHere e $ mapChildren (evalMore e) x
 evalHere :: EvalEnv -> Exp -> Exp
 evalHere e (TypeSig x _ty)  = evalMore  e x
 evalHere e (App x y)        = evalApp   e x y
-evalHere e (Proj x y)       = evalProj  e x y
+evalHere e (Proj h p x)     = evalProj  e h p x
 evalHere e (SumElim x ys z) = evalCase  e x ys z
 evalHere e (IFlip x)        = evalIFlip e x
 evalHere e (IV x y z w)     = evalIV    e x y z w
@@ -62,16 +62,12 @@ evalMeta e x xs =
 
 evalApp :: EvalEnv -> Exp -> Arg Exp -> Exp
 evalApp e (Lam _ x) y = evalMore e $ substBound x (argValue y)
---evalApp s (Refl x `AppH` y `AppH` z) (Arg h w) = Refl (App x (Arg h (IV)))
---evalApp s [qq| Refl [$n]x `AppH` y `AppH` z|] (Arg h w) =
---  evalMore s $ [qq| Refl [$n](App x (Arg $h (IV y[] z[] w[] n))) |]
 evalApp _ x y = App x y
 
-evalProj :: EvalEnv -> Arg Proj -> Exp -> Exp
-evalProj e (Arg _ Proj1) (Pair x _y _) = evalMore e (argValue x)
-evalProj e (Arg _ Proj2) (Pair _x y _) = evalMore e y
---evalProj s p (Refl x) = Refl <$> traverseBound Interval (evalProj s p) x
-evalProj _ p x = Proj p x
+evalProj :: EvalEnv -> Hiding -> Proj -> Exp -> Exp
+evalProj e _ Proj1 (Pair _ x _y _) = evalMore e x
+evalProj e _ Proj2 (Pair _ _x y _) = evalMore e y
+evalProj _ h p x = Proj h p x
 
 evalCase :: EvalEnv -> Exp -> [SumCase] -> Exp -> Exp
 evalCase e (SumVal n x _) ys _
@@ -125,10 +121,10 @@ evalCast e (Bound i (Pi (Arg h a) (Bound x b))) j1 j2 f =
   fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
 --
 evalCast e (Bound i (Si (Arg h a) b)) j1 j2 y =
-  Pair (Arg h y1') y2' (Si (Arg h (subst1 j2 a)) (fmap (substRaiseAt 1 j2) b))
+  Pair h y1' y2' (Si (Arg h (subst1 j2 a)) (fmap (substRaiseAt 1 j2) b))
   where
-  proj1 = evalProj e (Arg h Proj1)
-  proj2 = evalProj e (Arg h Proj2)
+  proj1 = evalProj e h Proj1
+  proj2 = evalProj e h Proj2
   y1 = proj1 y
   y2 = proj2 y
   y1' = evalCast e (Bound i a) j1 j2 y1
@@ -162,38 +158,30 @@ evalCast s [qq|[$i](Eq [$j](Pi (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
   x2 = [qq|[~x]Cast ([$i](Eq [$j]a[i,j] () ()) $i2 $i1 x |]-}
 --
 evalCast e [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore e
-  [qq| Refl [$j](Pair (Arg $h w1[i2=i2[],j])
-                              w2[i2=i2[],j]
+  [qq| Refl [$j](Pair $h w1[i2=i2[],j]
+                         w2[i2=i2[],j]
                       (Si (Arg $h a[i=i2[],j=j]) [$x]b[i=i2[],j=j,x])) |]
   where
   yk = [qq|[~j](IV u[i=i1[]] v[i=i1[]] y[] j)|] :: Wrap "j" Exp
-  y1 = [qq|Refl [$j](Proj (Arg $h Proj1) yk)|]
-  y2 = [qq|Refl [$j](Proj (Arg $h Proj2) yk)|]
+  y1 = [qq|Refl [$j](Proj $h Proj1 yk)|]
+  y2 = [qq|Refl [$j](Proj $h Proj2 yk)|]
   z1 = [qq|[~i2]Cast [$i](Eq [$j]a[i,j]              u1[i] v1[i]) i1[] i2 y1[]|]
   z2 = [qq|[~i2]Cast [$i](Eq [$j]b[i,j,x=w1[i2=i,j]] u2[i] v2[i]) i1[] i2 y2[]|]
   w1 = [qq|[~i2][~j] (IV u1[i=i2] v1[i=i2] z1[i2=i2] j)|]
   w2 = [qq|[~i2][~j] (IV u2[i=i2] v2[i=i2] z2[i2=i2] j)|]
-  u1 = [qq|[~i]Proj (Arg $h Proj1) u|] :: Wrap "i" Exp
-  u2 = [qq|[~i]Proj (Arg $h Proj2) u|]
-  v1 = [qq|[~i]Proj (Arg $h Proj1) v|]
-  v2 = [qq|[~i]Proj (Arg $h Proj2) v|]
+  u1 = [qq|[~i]Proj $h Proj1 u|] :: Wrap "i" Exp
+  u2 = [qq|[~i]Proj $h Proj2 u|]
+  v1 = [qq|[~i]Proj $h Proj1 v|]
+  v2 = [qq|[~i]Proj $h Proj2 v|]
 --
 --evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
 --
 evalCast _ a j1 j2 x = Cast a j1 j2 x
 
---evalCastEq ::
---evalCastEq s a x y z j1 j2 = pure [qq|Cast $j1 $j2 z|]
-
-{-
-fw_i (Eq_j A_12^i u v) w
-fw_i (Eq_j A_12^j u v) w
-fw_i (Eq (Eq x y) u v) w
-fw_i (Eq (Eq x y) (refl u) (refl v)) (refl w)
--}
 
 etaContract :: Exp -> Exp
-etaContract (Pair (Arg h1 (Proj (Arg h2 Proj1) x)) (Proj (Arg h3 Proj2) y) _) | x == y && h1 == h2 && h1 == h3 = x
+etaContract (Pair h1 (Proj h2 Proj1 x) (Proj h3 Proj2 y) _)
+  | x == y && h1 == h2 && h1 == h3 = x
 etaContract [qq|Lam (Arg h _) [$_x](App f[] (Arg $h' _x))|] | h == h' = f
 etaContract [qq|Refl [$_i](IV _ _ x[] _i)|] = x
 etaContract x = x
@@ -292,8 +280,8 @@ isWHNF :: Exp -> Bool
 isWHNF (TypeSig _ _) = False
 isWHNF (App (Lam _ _) _) = False
 isWHNF (App x _) = isWHNF x
-isWHNF (Proj _ (Pair _ _ _)) = False
-isWHNF (Proj _ x) = isWHNF x
+isWHNF (Proj _ _ (Pair _ _ _ _)) = False
+isWHNF (Proj _ _ x) = isWHNF x
 isWHNF (IV _ _ _ I1) = False
 isWHNF (IV _ _ _ I2) = False
 isWHNF (IV _ _ _ i) = isWHNF i

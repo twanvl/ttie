@@ -198,7 +198,7 @@ unify' :: Exp -> Exp -> TcM Exp
 unify' (Var i) (Var i') | i == i' = pure $ Var i
 unify' (Free x) (Free x') | x == x' = pure $ Free x
 unify' (Set i) (Set i') = Set <$> unifyLevels i i'
-unify' (Proj p x) (Proj p' x') | p == p' = Proj p <$> unify' x x'
+unify' (Proj h p x) (Proj h' p' x') | h == h' && p == p' = Proj h p <$> unify' x x'
 {-unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*> (Arg h <$> unify' y y')
   `annError` text "When unifying an application" $/$ tcPpr 0 x <+> text "applied to" <+> tcPpr 0 y
           $$ text " with" $/$ tcPpr 0 x' <+> text "applied to" <+> tcPpr 0 y'-}
@@ -210,8 +210,8 @@ unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> (unify' x x' `
 unify' (Binder b (Arg h x) y) (Binder b' (Arg h' x') y') | b == b' && h == h' = do
   x'' <- unify x x'
   Binder b (Arg h x'') <$> unifyBound x'' y y'
-unify' (Pair (Arg h x) y z) (Pair (Arg h' x') y' z') | h == h' =
-  Pair <$> (Arg h <$> unify x x') <*> unify y y' <*> unify z z'
+unify' (Pair h x y z) (Pair h' x' y' z') | h == h' =
+  Pair h <$> unify x x' <*> unify y y' <*> unify z z'
 unify' (SumTy xs) (SumTy xs') | length xs == length xs' = SumTy <$> zipWithM unifyCtor xs xs'
 unify' (SumVal x y z) (SumVal x' y' z') | x == x' = SumVal x <$> unify y y' <*> unify z z'
 unify' (SumElim x ys z) (SumElim x' ys' z') | length ys == length ys' = SumElim <$> unify x x' <*> zipWithM unifyCase ys ys' <*> unify z z'
@@ -234,10 +234,10 @@ unify' y (Meta x args) = unifyMeta flip x args y
   `annError` text "When trying to instantiate" <+> tcPpr 0 (Meta x args) <+> text "with" <+> tcPpr 0 y
 unify' x y | x == y = ("Warning: fall through (==) case in unify for " ++ show x) `traced` return x
 -- eta expansion and surjective pairing?
-unify' (Pair (Arg h x) y z) x' =
-  Pair <$> (Arg h <$> unify x (Proj (Arg h Proj1) x')) <*> unify y (Proj (Arg h Proj2) x') <*> pure z
-unify' x (Pair (Arg h x') y' z') =
-  Pair <$> (Arg h <$> unify (Proj (Arg h Proj1) x) x') <*> unify (Proj (Arg h Proj2) x) y' <*> pure z'
+unify' (Pair h x y z) x' =
+  Pair h <$> unify x (Proj h Proj1 x') <*> unify y (Proj h Proj2 x') <*> pure z
+unify' x (Pair h x' y' z') =
+  Pair h <$> unify (Proj h Proj1 x) x' <*> unify (Proj h Proj2 x) y' <*> pure z'
 --unify' [qq| Lam (Arg h x) [$u](App y[] u)|] x' =            [qq| [$n](App f[] (Arg $h n))|] where n = ""
 unify' (Lam (Arg h x) y) f = Lam (Arg h x) <$> unifyBound x y (Bound "" (App (raiseBy 1 f) (Arg h (Var 0))))
 unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x (Bound "" (App (raiseBy 1 f) (Arg h (Var 0)))) y
@@ -319,8 +319,8 @@ applyHidden' x (Pi (Arg Hidden u) v) = do
   let ty' = substBound v arg
   applyHidden' x' =<< tcEval WHNF ty'
 applyHidden' x (Si (Arg Hidden _) v) = do
-  let x'  = Proj (hidden Proj2) x
-  let ty' = substBound v (Proj (hidden Proj1) x)
+  let x'  = Proj Hidden Proj2 x
+  let ty' = substBound v (Proj Hidden Proj1 x)
   applyHidden' x' =<< tcEval WHNF ty'
 applyHidden' x ty = return (x,ty)
 
@@ -354,13 +354,13 @@ tc Nothing (Var i) = do
 tc Nothing (Free x) = do
   ty <- freeType x
   return (Free x, ty)
-tc Nothing (Proj p x) = do
+tc Nothing (Proj h p x) = do
   (x',x_ty) <- tc Nothing x
-  (x'',x_ty') <- applyHidden (argHiding p) x' x_ty
-  (ty1,ty2) <- unifyBinder SiB (argHiding p) x_ty'
-  case argValue p of
-    Proj1 -> return (Proj p x'', ty1)
-    Proj2 -> return (Proj p x'', substBound ty2 (Proj (Proj1<$p) x''))
+  (x'',x_ty') <- applyHidden h x' x_ty
+  (ty1,ty2) <- unifyBinder SiB h x_ty'
+  case p of
+    Proj1 -> return (Proj h p x'', ty1)
+    Proj2 -> return (Proj h p x'', substBound ty2 (Proj h Proj1 x''))
 tc Nothing Blank = do
   ty <- freshMetaSet
   tc (Just ty) Blank
@@ -404,7 +404,7 @@ tc Nothing (Binder b (Arg h x) y) = do -- Pi or Sigma
   (y',ly) <- tcBoundType x' y
     `annError` text "in the second argument of a binder" $/$ tcPpr 0 (Binder b (Arg h x') y)
   return (Binder b (Arg h x') y', Set (maxLevel lx ly))
-tc mty (Pair (Arg h x) y z) = do
+tc mty (Pair h x y z) = do
   mty' <- tcMType mty z
   case mty' of
     Nothing -> do
@@ -412,12 +412,12 @@ tc mty (Pair (Arg h x) y z) = do
       (x',tx) <- tc Nothing x
       (y',ty) <- tc Nothing y
       let txy = Si (Arg h tx) (notBound ty)
-      return (Pair (Arg h x') y' txy, txy)
+      return (Pair h x' y' txy, txy)
     Just ty' -> do
       (ty1,ty2) <- unifyBinder SiB h ty'
       (x',_) <- tc (Just ty1) x
       (y',_) <- tc (Just $ substBound ty2 x') y
-      return (Pair (Arg h x') y' ty', ty')
+      return (Pair h x' y' ty', ty')
 tc Nothing (Eq x y z) = do
   (x',l) <- tcBoundType Interval x
     `annError` text "in the 'type' argument of" $/$ tcPpr 0 (Eq x y z)

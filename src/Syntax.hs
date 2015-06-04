@@ -37,8 +37,8 @@ data Exp
   -- sets
   | Set  Level
   -- pairs
-  | Proj (Arg Proj) Exp
-  | Pair (Arg Exp) Exp Exp -- (x , y) : t
+  | Proj Hiding Proj Exp
+  | Pair Hiding Exp Exp Exp -- (x , y) : t
   -- unit type
   | UnitTy
   | UnitVal
@@ -165,7 +165,7 @@ caseToCtor :: SumCase -> SumCtor
 caseToCtor (SumCase n u _) = SumCtor n u
 
 mkTypeSig :: Exp -> Exp -> Exp
-mkTypeSig (Pair a b Blank) t = Pair a b t
+mkTypeSig (Pair h a b Blank) t = Pair h a b t
 mkTypeSig a b = TypeSig a b
 
 --------------------------------------------------------------------------------
@@ -178,8 +178,8 @@ instance TraverseChildren Exp Exp where
   traverseChildren _ (Set i)  = pure $ Set i
   traverseChildren f (Binder u (Arg h x) y) = traverseBinder (Binder u . Arg h) f f x y
   traverseChildren f (App x y) = App <$> f x <*> traverse f y
-  traverseChildren f (Proj x y) = Proj x <$> f y
-  traverseChildren f (Pair x y z) = Pair <$> traverse f x <*> f y <*> f z
+  traverseChildren f (Proj h x y) = Proj h x <$> f y
+  traverseChildren f (Pair h x y z) = Pair h <$> f x <*> f y <*> f z
   traverseChildren _ UnitTy = pure UnitTy
   traverseChildren _ UnitVal = pure UnitVal
   traverseChildren f (SumTy xs) = SumTy <$> traverse (traverseChildren f) xs
@@ -325,9 +325,9 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ (SumTy xs) = group $ text "data" $/$ semiBraces (map (ppr 0) xs)
   ppr p (SumVal x y _) = group $ parenAlignIf (p > 10) $ text "value" <+> text x <+> ppr 11 y
   ppr _ (SumElim x ys _) = group $ text "case" <+> ppr 0 x <+> text "of" <+> semiBraces (map (ppr 0) ys)
-  ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
-  --ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
-  ppr p (Pair x y z) = group $ parenIf (p > 0) $ align $ ppr 3 x <.> text "," $$ ppr 2 y $/$ text ":" <+> ppr 0 z
+  ppr p (Proj h x y) = group $ parenIf (p > 10) $ ppr p (Arg h x) <+> ppr 11 y
+  --ppr p (Pair h x y _) = group $ parenIf (p > 2) $ align $ ppr 3 (Arg h x) <.> text "," $$ ppr 2 y
+  ppr p (Pair h x y z) = group $ parenIf (p > 0) $ align $ ppr 3 (Arg h x) <.> text "," $$ ppr 2 y $/$ text ":" <+> ppr 0 z
   ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
     Bound "" x' -> align $ text "Eq"             $/$ localBound (unnamed Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
     Bound n x'  -> align $ text "Eq_" <.> text n $/$ localBound (named n Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
@@ -409,10 +409,10 @@ parseExpPrim p
   <|> Set . intLevel <$> tokType
   <|> mkNat <$> tokInt
   <|> Var <$> tokVar
-  <|> Proj (visible Proj1) <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
-  <|> Proj (visible Proj2) <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
-  <|> Proj (hidden  Proj1) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj1" <* tokRBrace) <*> parseExp 11
-  <|> Proj (hidden  Proj2) <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj2" <* tokRBrace) <*> parseExp 11
+  <|> Proj Visible Proj1 <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
+  <|> Proj Visible Proj2 <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
+  <|> Proj Hidden  Proj1 <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj1" <* tokRBrace) <*> parseExp 11
+  <|> Proj Hidden  Proj2 <$ guard (p <= 10) <* try (tokLBrace *> tokReservedName "proj2" <* tokRBrace) <*> parseExp 11
   <|> UnitTy <$ tokReservedName "Unit"
   <|> UnitVal <$ tokReservedName "tt"
   <|> SumTy   <$ tokReservedName "data" <* tokLBrace <*> parseSumCtor `sepBy` tokSemi <* tokRBrace
@@ -518,7 +518,7 @@ parseBinderOp h pcur pmin = do
  <|> do
   guard $ pcur >= 3 && pmin <= 2
   tokComma
-  return ((\x y -> pure (Pair (Arg h x) y Blank)), 3,2)
+  return ((\x y -> pure (Pair h x y Blank)), 3,2)
 
 parseBinders :: Parser [NamedArg Exp]
 parseBinders = concat <$> many parseBinder
