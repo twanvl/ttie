@@ -195,6 +195,8 @@ unify x y =
 unify' :: Exp -> Exp -> TcM Exp
 --unify' x y | not (isWHNF x) || not (isWHNF y) = error $ "unify': arguments not in WHNF:" ++ show (x,y)
 --unify' x y | not (isWHNF x) || not (isWHNF y) = tcError =<< text "unify': arguments not in WHNF:" <+> tcPpr 0 (x,y)
+unify' (Var i) (Var i') | i == i' = pure $ Var i
+unify' (Free x) (Free x') | x == x' = pure $ Free x
 unify' (Set i) (Set i') = Set <$> unifyLevels i i'
 unify' (Proj p x) (Proj p' x') | p == p' = Proj p <$> unify' x x'
 {-unify' (App x (Arg h y)) (App x' (Arg h' y')) | h == h' = App <$> unify' x x' <*> (Arg h <$> unify' y y')
@@ -215,11 +217,22 @@ unify' (SumVal x y z) (SumVal x' y' z') | x == x' = SumVal x <$> unify y y' <*> 
 unify' (SumElim x ys z) (SumElim x' ys' z') | length ys == length ys' = SumElim <$> unify x x' <*> zipWithM unifyCase ys ys' <*> unify z z'
 unify' (IFlip x) (IFlip x') = IFlip <$> unify' x x'
 unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify y y' <*> unify z z'
+unify' (Refl x) (Refl x') = Refl <$> unifyBound Interval x x'
+unify' (IV x y z w) (IV x' y' z' w') = IV <$> unify x x' <*> unify y y' <*> unify z z' <*> unify w w'
+unify' (Cast x y z w) (Cast x' y' z' w') = Cast <$> unifyBound Interval x x' <*> unify y y' <*> unify z z' <*> unify w w'
+unify' x@Interval Interval = pure x
+unify' x@I1 I1 = pure x
+unify' x@I2 I2 = pure x
+unify' x@I12 I12 = pure x
+unify' x@I21 I21 = pure x
+unify' x@UnitTy UnitTy = pure x
+unify' x@UnitVal UnitVal = pure x
+-- metas
 unify' (Meta x args) y = unifyMeta id   x args y
   `annError` text "When trying to instantiate" <+> tcPpr 0 (Meta x args) <+> text "with" <+> tcPpr 0 y
 unify' y (Meta x args) = unifyMeta flip x args y
   `annError` text "When trying to instantiate" <+> tcPpr 0 (Meta x args) <+> text "with" <+> tcPpr 0 y
-unify' x y | x == y = return x
+unify' x y | x == y = ("Warning: fall through (==) case in unify for " ++ show x) `traced` return x
 -- eta expansion and surjective pairing?
 unify' (Pair (Arg h x) y z) x' =
   Pair <$> (Arg h <$> unify x (Proj (Arg h Proj1) x')) <*> unify y (Proj (Arg h Proj2) x') <*> pure z
@@ -233,7 +246,7 @@ unify' [qq|Refl [$_i](IV _ _ x[] _i)|] x' = unify x x'
 unify' x [qq|Refl [$_i](IV _ _ x'[] _i)|] = unify x x'
 
 unify' x y = do
-  tcError =<< group (text "Failed to unify" <+> tcPpr 11 x $/$ text "with" <+> tcPpr 11 y)
+  tcError =<< group (text "Failed to unify" $/$ tcPpr 11 x $$ text "with" $/$ tcPpr 11 y)
 
 unifyName :: Name -> Name -> Name
 unifyName "" n = n
