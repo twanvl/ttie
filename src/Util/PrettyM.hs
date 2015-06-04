@@ -113,10 +113,14 @@ instance Applicative m => Pretty m Int where
 
 instance Applicative m => Pretty m () where
 instance Applicative m => Pretty m Void where
+instance Applicative m => Pretty m Bool where
 
 instance (Pretty m a, Pretty m b) => Pretty m (a,b) where
   ppr _ (x,y) = parens (ppr 0 x <.> comma <+> ppr 0 y)
 
+instance (Pretty m a, Pretty m b, Pretty m c) => Pretty m (a,b,c) where
+  ppr _ (x,y,z) = parens (ppr 0 x <.> comma <+> ppr 0 y <.> comma <+> ppr 0 z)
+  
 instance (Pretty m a, Pretty m b) => Pretty m (Either a b) where
   ppr p (Left  x) = parenIf (p>0) $ text "Left " <+> ppr 0 x
   ppr p (Right x) = parenIf (p>0) $ text "Right" <+> ppr 0 x
