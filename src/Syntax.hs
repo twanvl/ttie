@@ -164,6 +164,10 @@ mkNat n = Free "suc" `AppV` mkNat (n-1)
 caseToCtor :: SumCase -> SumCtor
 caseToCtor (SumCase n u _) = SumCtor n u
 
+mkTypeSig :: Exp -> Exp -> Exp
+mkTypeSig (Pair a b Blank) t = Pair a b t
+mkTypeSig a b = TypeSig a b
+
 --------------------------------------------------------------------------------
 -- Traversing expressions
 --------------------------------------------------------------------------------
@@ -322,8 +326,8 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr p (SumVal x y _) = group $ parenAlignIf (p > 10) $ text "value" <+> text x <+> ppr 11 y
   ppr _ (SumElim x ys _) = group $ text "case" <+> ppr 0 x <+> text "of" <+> semiBraces (map (ppr 0) ys)
   ppr p (Proj x y) = group $ parenIf (p > 10) $ ppr p x <+> ppr 11 y
-  ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
-  --ppr p (Pair x y z) = group $ parenIf (p > 0) $ align $ ppr 3 x <.> text "," $$ ppr 2 y $/$ text ":" <+> ppr 0 z
+  --ppr p (Pair x y _) = group $ parenIf (p > 2) $ align $ ppr 3 x <.> text "," $$ ppr 2 y
+  ppr p (Pair x y z) = group $ parenIf (p > 0) $ align $ ppr 3 x <.> text "," $$ ppr 2 y $/$ text ":" <+> ppr 0 z
   ppr p (Eq x y z) = group $ parenAlignIf (p > 10) $ case renameForPrinting x of
     Bound "" x' -> align $ text "Eq"             $/$ localBound (unnamed Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
     Bound n x'  -> align $ text "Eq_" <.> text n $/$ localBound (named n Interval) (ppr 11 x') $/$ ppr 11 y $/$ ppr 11 z
@@ -487,7 +491,7 @@ parseOp pcur pmin = (try $ do
  <|> do
   guard $ pcur >= 1 && pmin <= 0
   tokColon
-  return ((\x y -> pure (TypeSig x y)), 1,0)
+  return ((\x y -> pure (mkTypeSig x y)), 1,0)
  <|>
   parseBinderOp Visible pcur pmin
  <|> do
