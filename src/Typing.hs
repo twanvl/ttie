@@ -501,6 +501,10 @@ tc Nothing I21 = return (I21, Eq (notBound Interval) I2 I1)
 tc Nothing (IFlip x) = do
   (x',_) <- tc (Just Interval) x
   return (IFlip x',Interval)
+tc Nothing (IAnd x y) = do
+  (x',_) <- tc (Just Interval) x
+  (y',_) <- tc (Just Interval) y
+  return (IAnd x' y',Interval)
 tc Nothing (IV x y z w) = do
   (w',_) <- tc (Just Interval) w
   (z',t) <- tc Nothing z

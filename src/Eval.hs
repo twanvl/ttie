@@ -44,6 +44,7 @@ evalHere e (App x y)        = evalApp   e x y
 evalHere e (Proj h p x)     = evalProj  e h p x
 evalHere e (SumElim x ys z) = evalCase  e x ys z
 evalHere e (IFlip x)        = evalIFlip e x
+evalHere e (IAnd x y)       = evalIAnd  e x y
 evalHere e (IV x y z w)     = evalIV    e x y z w
 evalHere e (Eq x y z)       = evalEq    e x y z
 evalHere e (Cast x y z w)   = evalCast  e x y z w
@@ -80,6 +81,14 @@ evalIFlip _ I1 = I2
 evalIFlip _ I2 = I1
 evalIFlip _ (IFlip x) = x
 evalIFlip _ x  = IFlip x
+
+evalIAnd :: EvalEnv -> Exp -> Exp -> Exp
+evalIAnd _ I1 _ = I1
+evalIAnd _ I2 y = y
+evalIAnd _ _ I1 = I1
+evalIAnd _ x I2 = x
+-- commutativity and idempotence?
+evalIAnd _ x y = IAnd x y
 
 evalIV :: EvalEnv -> Exp -> Exp -> Exp -> Exp -> Exp
 evalIV _ x _ _ I1 = x
@@ -178,6 +187,33 @@ evalCast e [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore e
 --
 evalCast _ a j1 j2 x = Cast a j1 j2 x
 
+{-
+-- reduction of "Cast (Bound i (ezType p a)) i1 i2 x"
+evalCast' :: EvalEnv -> Name -> Exp -> Exp -> CastEqValue -> Exp
+evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 = x
+--evalCast' e i (Eq (Bound j a) (NotFree _) v) I2 (Refl (NotBound _)) 
+evalCast' e i (Eq (Bound j a) u v) i2 x = evalCast' e i a i2 (cevPush j u v x)
+evalCast' e i (Si (Arg h a) b) i1 i2 x = x12
+  where
+  proj1 = evalProj e h Proj1
+  proj2 = evalProj e h Proj2
+  x1 = cevMap proj1 x
+  x2 = cevMap proj2 x
+  x1' = evalCast' e i a i1 i2 x1
+  x1i = evalCast' e i (cevRaiseTypeBy 1 x a) (raiseBy 1 i1) (Var 0) (cezRaiseBy 1 x1)
+  x2' = evalCast' e i (substBound b x1i) i2 x2
+  x12 = cevPair (Si (Arg h a) b) (\u v -> Pair h u v) i2 x1' x2'
+evalCast' e i (Pi (Arg h a) b) i1 i2 f =
+  where
+  x    = cevVar (cevDepth f) a (Var 0)
+  x'   = evalCast e i (raiseAtBy n 1 a) (raiseBy 1 i2) x
+  xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0) (Var 1)
+  fx'  = App (raiseBy 1 f) (Arg h x')
+  fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
+evalCast' _ i a i1 i2 x = Cast (Bound i (cevType a x)) (cevCurrentIdx x) i2 (cevValue x)
+
+-}
+  
 
 etaContract :: Exp -> Exp
 etaContract (Pair h1 (Proj h2 Proj1 x) (Proj h3 Proj2 y) _)

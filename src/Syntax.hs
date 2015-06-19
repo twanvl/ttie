@@ -52,7 +52,7 @@ data Exp
   | Cast (Bound Exp) Exp Exp Exp
   | Equiv Exp Exp Exp Exp Exp
   -- interval
-  | Interval | I1 | I2 | I12 | I21 | IFlip Exp
+  | Interval | I1 | I2 | I12 | I21 | IFlip Exp | IAnd Exp Exp
   | IV Exp Exp Exp Exp
   -- typing
   | TypeSig Exp Exp
@@ -193,6 +193,7 @@ instance TraverseChildren Exp Exp where
   traverseChildren _ I12 = pure I12
   traverseChildren _ I21 = pure I21
   traverseChildren f (IFlip x) = IFlip <$> f x
+  traverseChildren f (IAnd x y) = IAnd <$> f x <*> f y
   traverseChildren f (IV x y z w) = IV <$> f x <*> f y <*> f z <*> f w
   traverseChildren f (Cast  a b c d) = Cast <$> traverseBound Interval f a <*> f b <*> f c <*> f d
   traverseChildren f (Equiv a b c d e) = Equiv <$> f a <*> f b <*> f c <*> f d <*> f e
@@ -340,6 +341,7 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
   ppr _ I12 = text "i12"
   ppr _ I21 = text "i21"
   ppr p (IFlip x) = group $ parenIf (p > 10) $ text "iflip" <+> ppr 11 x
+  ppr p (IAnd x y) = group $ parenIf (p > 10) $ text "iand" <+> ppr 11 x <+> ppr 11 y
   --ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
   ppr p (IV x y z w) = group $ parenAlignIf (p > 10) $ align $ text "iv" $/$ ppr 11 x $/$ ppr 11 y $/$ ppr 11 z $/$ ppr 11 w
   ppr p (Cast  a b c d) = group $ parenIf (p > 10) $ align $ case renameForPrinting a of
@@ -424,6 +426,7 @@ parseExpPrim p
   <|> I12 <$ tokReservedName "i12"
   <|> I21 <$ tokReservedName "i21"
   <|> IFlip <$ guard (p <= 10) <* tokReservedName "iflip" <*> parseExp 11
+  <|> IAnd <$ guard (p <= 10) <* tokReservedName "iand" <*> parseExp 11 <*> parseExp 11
   <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Refl (capture n x)) <$ guard (p <= 10) <*> tokRefl <*> parseExp 11
   <|> (\n x -> Eq   (capture n x)) <$ guard (p <= 10) <*> tokEq   <*> parseExp 11 <*> parseExp 11 <*> parseExp 11

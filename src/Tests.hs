@@ -98,6 +98,12 @@ goodExpressions =
    ++" : {A : Set} -> {x : A} -> (P : (y : A) -> Eq A x y -> Set) -> {y : A} -> (xy : Eq A x y) -> P x (refl x) -> P y xy"
   ,"{-jay-inline-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
      \ fw_i (P xy^i (cast_j (Eq A x xy^j) i1 i (refl x))) px : P y xy"
+  --,"{-jay-alt-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
+  --   \ fw_i (P xy^i (cast_j (Eq A xy^j xy^i) i i1 (refl xy^i))) px : P y xy"
+  ,"{-jay-and-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
+     \ fw_i (P xy^i (refl_j xy^(iand i j))) px : P y xy"
+  ,"{-jay-and2-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
+     \ fw_i (P xy^i (refl_j xy^((cast_j (Eq Interval i1 j) i1 j (refl i1))^i))) px : P y xy"
   -- equivalence to OTT style
   ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> ("
    ++"(\\fg x12 -> refl_i (fg^i x12^i))"
