@@ -317,6 +317,10 @@ traceLevel = unsafePerformIO $ newIORef 0
 traceLevel0 :: IO ()
 traceLevel0 = writeIORef traceLevel 0
 
+fromLeft :: Show b => Either a b -> a
+fromLeft (Right x) = error $ "fromLeft: Right " ++ show x
+fromLeft (Left x) = x
+
 fromRight :: Show a => Either a b -> b
 fromRight (Right x) = x
 fromRight (Left x) = error $ "fromRight: Left " ++ show x

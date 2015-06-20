@@ -15,6 +15,7 @@ import Substitution
 import SubstitutionQQ
 import Names
 import TcMonad
+import EqZipper
 
 --------------------------------------------------------------------------------
 -- Evaluation
@@ -102,6 +103,15 @@ evalEq _ x y z = Eq x y z
 
 --evalFw s [qq|Refl [$_n]x[] |] y = y
 evalCast :: EvalEnv -> Bound Exp -> Exp -> Exp -> Exp -> Exp
+evalCast e (Bound i a) i1 i2 x = 
+  cevWrappedValue $ evalCast' e i a i2 x'
+  where
+  x' = CastEqValue
+      { cevValue = x
+      , cevPath = []
+      , cevCurrentIdx = i1
+      }
+
 --evalCast _ _ I1 I1 y = y
 --evalCast _ _ I2 I2 y = y
 evalCast _ _ j1 j2 y | j1 == j2 = y
@@ -187,126 +197,64 @@ evalCast e [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore e
 --
 evalCast _ a j1 j2 x = Cast a j1 j2 x
 
-{-
 -- reduction of "Cast (Bound i (ezType p a)) i1 i2 x"
-evalCast' :: EvalEnv -> Name -> Exp -> Exp -> CastEqValue -> Exp
+evalCast' :: EvalEnv -> Name -> Exp -> Exp -> CastEqValue -> CastEqValue
 evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 = x
---evalCast' e i (Eq (Bound j a) (NotFree _) v) I2 (Refl (NotBound _)) 
-evalCast' e i (Eq (Bound j a) u v) i2 x = evalCast' e i a i2 (cevPush j u v x)
-evalCast' e i (Si (Arg h a) b) i1 i2 x = x12
+evalCast' e i (Eq (Bound j a) u v) i2 x =
+  evalCast' e i a i2 (cevPush j u v x)
+evalCast' _ _ a i2 x | not (cevIndexIsFree x) && not (isFree (cevDepth x) a) = x'
+  where
+  x' = x { cevCurrentIdx = i2 }
+evalCast' e i (Si (Arg h a) b) i2 x = x12
   where
   proj1 = evalProj e h Proj1
   proj2 = evalProj e h Proj2
   x1 = cevMap proj1 x
   x2 = cevMap proj2 x
-  x1' = evalCast' e i a i1 i2 x1
-  x1i = evalCast' e i (cevRaiseTypeBy 1 x a) (raiseBy 1 i1) (Var 0) (cezRaiseBy 1 x1)
-  x2' = evalCast' e i (substBound b x1i) i2 x2
-  x12 = cevPair (Si (Arg h a) b) (\u v -> Pair h u v) i2 x1' x2'
-evalCast' e i (Pi (Arg h a) b) i1 i2 f =
+  x1' = evalCast' e i a i2 x1
+  x1i = evalCast' e i (raiseAtBy (cevDepth x+1) 1 a) (Var 0) (cevRaiseBy 1 x1)
+  x2' = evalCast' e i (substBound b (cevUnwrappedValue x1i)) i2 x2
+  ab' = substRaiseAt (cevDepth x) i2 (Si (Arg h a) b)
+  x12 = CastEqValue
+    { cevValue = cevZipWithValue (\u v -> Pair h u v ab') x1' x2'
+    , cevPath  = cevPath x
+    , cevCurrentIdx = i2
+    }
+{-
+evalCast' e i (Pi (Arg h a) b) i2 f = f'
   where
-  x    = cevVar (cevDepth f) a (Var 0)
+  x    = cevVar (cevDepth f) a i2 (Var 0)
   x'   = evalCast e i (raiseAtBy n 1 a) (raiseBy 1 i2) x
   xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0) (Var 1)
   fx'  = App (raiseBy 1 f) (Arg h x')
   fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
-evalCast' _ i a i1 i2 x = Cast (Bound i (cevType a x)) (cevCurrentIdx x) i2 (cevValue x)
-
+  a2   = substRaiseAt (cevDepth f) i2 a
+  f'   = CastEqValue
+    { cevValue = Lam (Arg h a2) (Bound (boundName b) fx)
+    , cevPath  = cevPath f
+    , cevCurrentIdx = i2
+    }
+  where
+  x'   = evalCast e (Bound i $ raiseAtBy 1 1 a) (raiseBy 1 j2) (raiseBy 1 j1) (Var 0)
+  xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0)        (Var 1)
+  fx'  = App (raiseBy 1 f) (Arg h x')
+  fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
 -}
-  
+evalCast' _ i a i2 x = x'
+  where
+  x' = x
+    { cevValue = Cast (Bound i (cevType a x)) (cevCurrentIdx x) i2 (cevWrappedValue x)
+    , cevCurrentIdx = i2
+    }
 
+  
+-- Eta contractions
 etaContract :: Exp -> Exp
-etaContract (Pair h1 (Proj h2 Proj1 x) (Proj h3 Proj2 y) _)
+etaContract (Pair h1 (Proj h2 Proj1 x) (Proj h3 Proj2 y) _) -- Note: only valid if the types are right!
   | x == y && h1 == h2 && h1 == h3 = x
 etaContract [qq|Lam (Arg h _) [$_x](App f[] (Arg $h' _x))|] | h == h' = f
 etaContract [qq|Refl [$_i](IV _ _ x[] _i)|] = x
 etaContract x = x
-
---------------------------------------------------------------------------------
--- Evaluation
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
--- Casting
---------------------------------------------------------------------------------
-{-
--- x : A                      -->  Box x []
--- x : Eq_j A a b             -->  Box x [(j,a,b)]
--- x : Eq_j (Eq_k A c d) a b  -->  Box x [(j,a,b),(k,c,d)]
--- free variables:
---   x[], a[0=i], c[0=j,1=i]
---   where i is the variable being cast along.
--- types:
---   G |- x : (boxType A [(j,a,b),(k,c,d)])[i=1] (see above)
---   G,i |- a : (boxType A [(k,c,d)])[j=1]
---   G,i,j |- c : A[k=1]
---   G,i,j,k |- A : Type
-data Box = Box
-  { boxValue :: Exp
-  , boxArgs  :: [(Name,Exp,Exp)]
-  --, boxArgAt :: Exp
-  }
-
-noBox :: Exp -> Box
-noBox x = Box x []
-
-mapBox :: (Exp -> Exp) -> (Box -> Box)
-mapBox f (Box x args) = undefined
-
--- type of the thing in the box (generalized with var 0 the variable that is cast along)
-boxType :: Exp -> BoxArgs -> Exp
---boxType = foldr (\(j,u,v) t -> Eq (Bound j t) u v)
-boxType a [] = a
-boxType a ((j,u,v):ws) = Eq (Bound j (boxType a ws)) u v
-
--- map a simple function (without free vars) over the thing in a box
-boxMap :: (Exp -> Exp) -> BoxArgs -> Exp -> Exp
-boxMap f ws x = boxWrap ws (f (boxUnwrap ws x))
-
-boxArgsMap :: (Exp -> Exp) -> BoxArgs -> BoxArgs
-boxArgsMap f [] = []
-boxArgsMap f 
-
--- unwrap a boxed value into a larger context
-boxUnwrap :: BoxArgs -> Exp -> Exp
-boxUnwrap [] x = x
-boxUnwrap ((_j,u,v):ws) x = IV u v (raiseBy 1 (boxUnwrap ws x)) (Var 0)
-
-boxWrap :: BoxArgs -> Exp -> Exp
-boxWrap [] x = x
-boxWrap ((j,_,_):ws) x = Refl (Bound j (boxWrap ws x))
-
--- substitute Var 0 in BoxArgs. This is the variable along which we are casting
-boxArgsSubst :: Exp -> BoxArgs -> BoxArgs
-boxArgsSubst = go 1
-  where
-  go n [] = []
-  go n ((j,u,v):ws) = (j, substAt n (raiseBy n x) u, substAt n (raiseBy n x) v)
-                    : go (n+1) x ws
--}
---------------------------------------
-
-{-
--- A zipper to look inside Eq
-data EqZipper a = EqRoot Exp | EqStep Exp Exp EqZipper
-
-eqzRoot :: EqZipper a -> a
-eqzRoot (EqRoot x) = x
-eqzRoot (EqStep _ _ x) = eqzRoot x
-
-eqzType :: EqZipper a -> Exp -> Exp
-
-eqzToExp :: EqZipper -> Exp
-eqzToExp (EqRoot x) = x
-eqzToExp (EqStep u v x) = eqzToExp x
-
-eqzMap :: 
--}
-
---traverseBox :: Box -> Box
-{-
-lamBox :: (Box -> Box) -> Box
--}
 
 --------------------------------------------------------------------------------
 -- Is an expression in WHNF?

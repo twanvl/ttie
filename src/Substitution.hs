@@ -125,6 +125,12 @@ lowerByN n xs = mapExpM $ \i -> if i >= n then Just (var (i - n)) else IM.lookup
   vars = IM.fromList [ (v,var i) | (i, unVar -> Just v) <- zip [0..] (toList xs) ]
 -}
 
+pattern NotFree  x <- (lowerBy 1 -> Just x)
+
+-- Is a given variable free in an expression?
+isFree :: Subst a => Int -> a -> Bool
+isFree i = getAny . getConst . mapExpM (\j -> Const . Any $ i == j)
+
 --------------------------------------------------------------------------------
 -- Substitution and friends for Bound
 --------------------------------------------------------------------------------
@@ -140,6 +146,5 @@ lowerBound = lowerBy 1 . boundBody
 notBound :: Subst a => a -> Bound a
 notBound = Bound "" . raiseBy 1
 
-pattern NotFree  x <- (lowerBy 1 -> Just x)
 pattern NotBound x <- (Bound _ (lowerBy 1 -> Just x))
 

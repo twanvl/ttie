@@ -216,6 +216,7 @@ unify' (SumTy xs) (SumTy xs') | length xs == length xs' = SumTy <$> zipWithM uni
 unify' (SumVal x y z) (SumVal x' y' z') | x == x' = SumVal x <$> unify y y' <*> unify z z'
 unify' (SumElim x ys z) (SumElim x' ys' z') | length ys == length ys' = SumElim <$> unify x x' <*> zipWithM unifyCase ys ys' <*> unify z z'
 unify' (IFlip x) (IFlip x') = IFlip <$> unify' x x'
+unify' (IAnd x y) (IAnd x' y') = IAnd <$> unify' x x' <*> unify' y y'
 unify' (Eq x y z) (Eq x' y' z') = Eq <$> unifyBound Interval x x' <*> unify y y' <*> unify z z'
 unify' (Refl x) (Refl x') = Refl <$> unifyBound Interval x x'
 unify' (IV x y z w) (IV x' y' z' w') = IV <$> unify x x' <*> unify y y' <*> unify z z' <*> unify w w'
@@ -238,10 +239,10 @@ unify' (Pair h x y z) x' =
   Pair h <$> unify x (Proj h Proj1 x') <*> unify y (Proj h Proj2 x') <*> pure z
 unify' x (Pair h x' y' z') =
   Pair h <$> unify (Proj h Proj1 x) x' <*> unify (Proj h Proj2 x) y' <*> pure z'
---unify' [qq| Lam (Arg h x) [$u](App y[] u)|] x' =            [qq| [$n](App f[] (Arg $h n))|] where n = ""
+--unify' [qq| Lam (Arg h _x) [$u](App f[] (Arg $h' u))|] f' | h == h' = unify f f'
+--unify' (Lam (Arg h _) (Bound _ (App (NotFree f) (Arg h' (Var 0))))) f' | h == h' = unify f f'
 unify' (Lam (Arg h x) y) f = Lam (Arg h x) <$> unifyBound x y (Bound "" (App (raiseBy 1 f) (Arg h (Var 0))))
 unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x (Bound "" (App (raiseBy 1 f) (Arg h (Var 0)))) y
---unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x [qq| [$n] App f[] (Arg h n)|] y
 unify' [qq|Refl [$_i](IV _ _ x[] _i)|] x' = unify x x'
 unify' x [qq|Refl [$_i](IV _ _ x'[] _i)|] = unify x x'
 
