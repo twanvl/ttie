@@ -252,14 +252,7 @@ goodExpressions =
      \                      (u i (cast_i (A i i1) j2 i (cast_j (A j2 j) j i1 x))) \
      \                      (v i (cast_i (A i i2) j2 i (cast_j (A j2 j) j i2 x))) ) j1 j2\
      \    (refl_j' (f^j' (cast_i (A i j') j2 j1 (cast_j (A j2 j) j j' x))))) ^j )"
-  {-,"{-cast-eq-pair-} \\(A : _ -> _ -> _ -> Set) (B : ∀ {i j k}. A i j k -> Set) u v p q j1 j2 \
-     \                 (xy : Eq_j (Eq_k ((x:A j1 j k)*B x) (u j1 j) (v j1 j)) (p j1) (q j1)). \
-     \ (refl_j ((cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 xy^j)))^j \
-     \                     ,(cast_i (Eq_j (B {i} {j} \
-     \                      (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 i (refl_j (proj1 xy^j)))^j) \
-     \                                    (proj2 (u i)) (proj2 (v i))) j1 j2 (refl_j (proj2 xy^j)))^j : (x:A j2 j)*B x) \
-     \ : Eq_j (Eq_k ((x:A j1 j k)*B x) (u j1 j) (v j1 j)) (p j1) (q j1) )"-}
-  ,"{-cast-eq-pair-} \\(A B : _ -> _ -> _ -> Set) \
+  ,"{-cast-eq-eq-pair-} \\(A B : _ -> _ -> _ -> Set) \
      \                 (u : forall i j. (A i j i1 * B i j i1)) \
      \                 (v : forall i j. (A i j i2 * B i j i2)) \
      \                 (p : (i:_) -> Eq_k (A i i1 k * B i i1 k) (u i i1) (v i i1)) \
@@ -272,6 +265,19 @@ goodExpressions =
      \                                (refl_k (proj2 (p i)^k)) (refl_k (proj2 (q i)^k))) j1 j2 \
      \                          (refl_j (refl_k (proj2 (xy^j)^k))))^j^k)) \
      \ : Eq_j (Eq_k (A j2 j k * B j2 j k) (u j2 j) (v j2 j)) (p j2) (q j2) )"
+  ,"{-cast-eq-eq-fun-} \\(A B : _ -> _ -> _ -> Set) \
+     \                 (u : forall i j. (A i j i1 -> B i j i1)) \
+     \                 (v : forall i j. (A i j i2 -> B i j i2)) \
+     \                 (p : (i:_) -> Eq_k (A i i1 k -> B i i1 k) (u i i1) (v i i1)) \
+     \                 (q : (i:_) -> Eq_k (A i i2 k -> B i i2 k) (u i i2) (v i i2)) j1 j2 \
+     \                 (f : Eq_j (Eq_k (A j1 j k -> B j1 j k) (u j1 j) (v j1 j)) (p j1) (q j1)). \
+     \ refl_j (refl_k (\\(x : A j2 j k) -> \
+     \    (cast_i (Eq_j' (Eq_k' (B i j' k') \
+     \                            (u i j' (cast_i (A i j' i1) j2 i (cast_j (A j2 j i1) j j' (cast_k (A j2 j k) k i1 x)))) \
+     \                            (v i j' (cast_i (A i j' i2) j2 i (cast_j (A j2 j i2) j j' (cast_k (A j2 j k) k i2 x)))) ) \
+     \                     (refl_k' ((p i)^k' (cast_i (A i i1 k') j2 i (cast_j (A j2 j k') j i1 (cast_k (A j2 j k) k k' x))))) \
+     \                     (refl_k' ((q i)^k' (cast_i (A i i2 k') j2 i (cast_j (A j2 j k') j i2 (cast_k (A j2 j k) k k' x))))) ) j1 j2 \
+     \    (refl_j' (refl_k' (f^j'^k' (cast_i (A i j' k') j2 j1 (cast_j (A j2 j k') j j' (cast_k (A j2 j k) k k' x))))))  )^j^k ))"
   ]
   {-
   cast A (proj1 x) becomes (cast (Eq A) (refl_i (proj1 x)))^i
