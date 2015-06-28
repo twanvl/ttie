@@ -245,6 +245,23 @@ unify' (Lam (Arg h x) y) f = Lam (Arg h x) <$> unifyBound x y (Bound "" (App (ra
 unify' f (Lam (Arg h x) y) = Lam (Arg h x) <$> unifyBound x (Bound "" (App (raiseBy 1 f) (Arg h (Var 0)))) y
 unify' [qq|Refl [$_i](IV _ _ x[] _i)|] x' = unify x x'
 unify' x [qq|Refl [$_i](IV _ _ x'[] _i)|] = unify x x'
+-- inside a refl_i we may have unevaluated things that cause i to be bound somewhere that is irrelevant in the end.
+unify' (Refl x) x' = do
+  {-
+  -- this is the correct typing, but since we don't do higher order unification yet, the type of v1:ty[i1] will cause ty to contain i1, instead of using a variable that is equal to v1.
+  ty <- Bound "" <$> localBound (unnamed Interval) freshMetaSet
+  v1 <- freshMeta (substBound ty I1)
+  v2 <- freshMeta (substBound ty I2)-}
+  v1 <- freshMetaAny
+  v2 <- freshMetaAny
+  Refl <$> unifyBound Interval x (Bound "" (IV (raiseBy 1 v1) (raiseBy 1 v2) (raiseBy 1 x') (Var 0)))
+unify' x (Refl x') = do
+  {-ty <- Bound "" <$> localBound (unnamed Interval) freshMetaSet
+  v1 <- freshMeta (substBound ty I1)
+  v2 <- freshMeta (substBound ty I2)-}
+  v1 <- freshMetaAny
+  v2 <- freshMetaAny
+  Refl <$> unifyBound Interval (Bound "" (IV (raiseBy 1 v1) (raiseBy 1 v2) (raiseBy 1 x) (Var 0))) x'
 
 unify' x y = do
   tcError =<< group (text "Failed to unify" $/$ tcPpr 11 x $$ text "with" $/$ tcPpr 11 y)

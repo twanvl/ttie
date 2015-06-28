@@ -107,35 +107,45 @@ goodExpressions =
   --,"{-jay-and3-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
   --   \ fw_i (P xy^i (refl_j xy^((cast_j (Eq Interval i1 j) i1 i (refl i1))^j))) px : P y xy"
   -- equivalence to OTT style
-  ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> ("
-   ++"(\\fg x12 -> refl_i (fg^i x12^i))"
-   ++": Eq_i ((x : A i) -> B i x) f g -> (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)))"
-  ,"\\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> ("
-   ++"(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i1 x} {cast_k (A k) i i2 x} (refl_j (cast_k (A k) i j x)))^i))"
-   ++": (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
+  ,"{-ott-app-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> (\
+     \(\\fg x12 -> refl_i (fg^i x12^i))\
+     \: Eq_i ((x : A i) -> B i x) f g -> (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)))"
+  ,"{-ott-lam-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> (\
+     \(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i1 x} {cast_k (A k) i i2 x} (refl_j (cast_k (A k) i j x)))^i))\
+     \: (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
   -- type checking of evaluation steps
   ,"forall (A : _ -> Set) j x. Eq _ (cast_i (A i) j j x) x"
-  ,"\\{-ty-cast-pair-} (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+  ,"{-ty-cast-pair-} \\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ (cast_i ((x:A i) * B x) j1 j2 xy : (x:A j2)*B x)"
-  ,"\\{-ty-cast-fun-} (A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+  ,"{-ty-cast-fun-} \\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ (cast_i ((x:A i) -> B x) j1 j2 xy : (x:A j2)->B x)"
-  ,"\\{-ty-cast-eq-fun-} \
-     \(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
+  ,"{-ty-cast-eq-pair-} \
+     \\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \ (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)*B x) (u j2) (v j2))"
-  ,"\\{-ty-cast-eq-pair-} \
-     \(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
+  ,"{-ty-cast-eq-fun-} \
+     \\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
      \ (cast_i (Eq_j ((x:A i j)->B x) (u i) (v i)) j1 j2 xy : Eq_j ((x:A j2 j)->B x) (u j2) (v j2))"
+  ,"{-ty-cast-eq-eq-pair-} \
+     \\\(A : _ -> _ -> _ -> Set) (B : ∀ {i j k}. A i j k -> Set) u v p q j1 j2 \
+     \  (xy : Eq_j (Eq_k ((x:A j1 j k)*B x) (u j1 j) (v j1 j)) (p j1) (q j1)). \
+     \ (cast_i (Eq_j (Eq_k ((x:A i j k)*B x) (u i j) (v i j)) (p i) (q i)) j1 j2 xy \
+     \ : Eq_j (Eq_k ((x:A j2 j k)*B x) (u j2 j) (v j2 j)) (p j2) (q j2))"
+  ,"{-ty-cast-eq-eq-fun-} \
+     \\\(A : _ -> _ -> _ -> Set) (B : ∀ {i j k}. A i j k -> Set) u v p q j1 j2 \
+     \  (xy : Eq_j (Eq_k ((x:A j1 j k)->B x) (u j1 j) (v j1 j)) (p j1) (q j1)). \
+     \ (cast_i (Eq_j (Eq_k ((x:A i j k)->B x) (u i j) (v i j)) (p i) (q i)) j1 j2 xy \
+     \ : Eq_j (Eq_k ((x:A j2 j k)->B x) (u j2 j) (v j2 j)) (p j2) (q j2))"
   -- implementation of casts
-  ,"\\{-cast-pair-}(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+  ,"{-cast-pair-} \\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ refl _ : Eq ((x:A j2)*B x) \
      \             (cast_i ((x:A i) * B x) j1 j2 xy) \
      \             (cast_i (A i) j1 j2 (proj1 xy)\
      \             ,cast_i (B {i} (cast_i' (A i') j1 i (proj1 xy))) j1 j2 (proj2 xy))"
-  ,"\\{-cast-fun-}(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
+  ,"{-cast-fun-} \\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
      \ refl _ : Eq ((x:A j2) -> B x) \
      \             (cast_i ((x:A i) -> B x) j1 j2 xy) \
      \             (\\(x:A j2) -> cast_i (B {i} (cast_i (A i) j2 i x)) j1 j2 (xy (cast_i (A i) j2 j1 x)) )"
-  ,"\\{-cast-eq-pair-}(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
+  ,"{-cast-eq-pair-} \\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (xy : Eq_j ((x:A j1 j)*B x) (u j1) (v j1)). \
      \ refl _ : Eq (Eq_j ((x:A j2 j)*B x) (u j2) (v j2)) \
      \             (cast_i (Eq_j ((x:A i j)*B x) (u i) (v i)) j1 j2 xy) \
      \             (refl_j ((cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 xy^j)))^j \
@@ -231,6 +241,37 @@ goodExpressions =
      \                                             (cast_i (A i i2) j2 i (cast_k (A j2 k) j0 i2 x))) j2 j1 \
      \                               (refl_j (cast_k (A j2 k) j0 j x)) )^j0)"
      -}
+  ,"{-ar-eq2-}\\(A : _ -> _ -> Set) (B : _ -> _ -> Set) u v j1 j2 (f : Eq_j (A j1 j->B j1 j) (u j1) (v j1)). \
+     \ refl_j (\\(x : A j2 j) -> \
+     \    (cast_i (Eq_j' (B i j') (u i (cast_i (A i i1) j2 i (cast_j (A j2 j) j i1 x))) \
+     \                            (v i (cast_i (A i i2) j2 i (cast_j (A j2 j) j i2 x))) ) j1 j2\
+     \    (refl_j' (f^j' (cast_i (A i j') j2 j1 (cast_j (A j2 j) j j' x))))) ^j )"
+  ,"{-ar-deq-}\\(A : _ -> _ -> Set) (B : ∀ {i j}. A i j -> Set) u v j1 j2 (f : Eq_j ((x:A j1 j)->B x) (u j1) (v j1)). \
+     \ refl_j (\\(x : A j2 j) -> \
+     \    (cast_i (Eq_j' (B {i} {j'} (cast_i (A i j') j2 i (cast_j (A j2 j) j j' x))) \
+     \                      (u i (cast_i (A i i1) j2 i (cast_j (A j2 j) j i1 x))) \
+     \                      (v i (cast_i (A i i2) j2 i (cast_j (A j2 j) j i2 x))) ) j1 j2\
+     \    (refl_j' (f^j' (cast_i (A i j') j2 j1 (cast_j (A j2 j) j j' x))))) ^j )"
+  {-,"{-cast-eq-pair-} \\(A : _ -> _ -> _ -> Set) (B : ∀ {i j k}. A i j k -> Set) u v p q j1 j2 \
+     \                 (xy : Eq_j (Eq_k ((x:A j1 j k)*B x) (u j1 j) (v j1 j)) (p j1) (q j1)). \
+     \ (refl_j ((cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 j2 (refl_j (proj1 xy^j)))^j \
+     \                     ,(cast_i (Eq_j (B {i} {j} \
+     \                      (cast_i (Eq_j (A i j) (proj1 (u i)) (proj1 (v i))) j1 i (refl_j (proj1 xy^j)))^j) \
+     \                                    (proj2 (u i)) (proj2 (v i))) j1 j2 (refl_j (proj2 xy^j)))^j : (x:A j2 j)*B x) \
+     \ : Eq_j (Eq_k ((x:A j1 j k)*B x) (u j1 j) (v j1 j)) (p j1) (q j1) )"-}
+  ,"{-cast-eq-pair-} \\(A B : _ -> _ -> _ -> Set) \
+     \                 (u : forall i j. (A i j i1 * B i j i1)) \
+     \                 (v : forall i j. (A i j i2 * B i j i2)) \
+     \                 (p : (i:_) -> Eq_k (A i i1 k * B i i1 k) (u i i1) (v i i1)) \
+     \                 (q : (i:_) -> Eq_k (A i i2 k * B i i2 k) (u i i2) (v i i2)) j1 j2 \
+     \                 (xy : Eq_j (Eq_k (A j1 j k * B j1 j k) (u j1 j) (v j1 j)) (p j1) (q j1)). \
+     \ (refl_j (refl_k ((cast_i (Eq_j (Eq_k (A i j k) (proj1 (u i j)) (proj1 (v i j))) \
+     \                                (refl_k (proj1 (p i)^k)) (refl_k (proj1 (q i)^k))) j1 j2 \
+     \                          (refl_j (refl_k (proj1 (xy^j)^k))))^j^k \
+     \                 ,(cast_i (Eq_j (Eq_k (B i j k) (proj2 (u i j)) (proj2 (v i j))) \
+     \                                (refl_k (proj2 (p i)^k)) (refl_k (proj2 (q i)^k))) j1 j2 \
+     \                          (refl_j (refl_k (proj2 (xy^j)^k))))^j^k)) \
+     \ : Eq_j (Eq_k (A j2 j k * B j2 j k) (u j2 j) (v j2 j)) (p j2) (q j2) )"
   ]
   {-
   cast A (proj1 x) becomes (cast (Eq A) (refl_i (proj1 x)))^i
@@ -363,6 +404,10 @@ testBadExp xStr = do
   assertFailed "Type inference should fail" $
     myTestTcM $ tc Nothing x
 
+testExp' :: String -> IO ()
+testExp' x = 
+  putStrLn $ either ("FAIL\n"++) ("OK\n"++) $ testExp x
+
 --------------------------------------------------------------------------------
 -- Main: testcases
 --------------------------------------------------------------------------------
@@ -373,9 +418,9 @@ testBadExp xStr = do
 tests :: TestTree
 tests = testGroup "Tests"
   [ testGroup "Should pass"
-    [ testCaseInfo (take 20 xStr) (testExp xStr) | xStr <- goodExpressions ]
+    [ testCaseInfo (show i ++ " " ++ take 25 xStr) (testExp xStr) | (i,xStr) <- zip [0..] goodExpressions ]
   , testGroup "Should fail"
-    [ testCase (take 20 xStr) (testBadExp xStr) | xStr <- badExpressions ]
+    [ testCase (show i ++ " " ++ take 20 xStr) (testBadExp xStr) | (i,xStr) <- zip [0..] badExpressions ]
   ]
 
 main :: IO ()
