@@ -19,6 +19,7 @@ import Eval
 import qualified Data.Map as Map
 import Data.Typeable
 import Data.String
+import Data.List (isPrefixOf)
 
 import Test.Tasty
 --import Test.Tasty.HUnit
@@ -409,6 +410,17 @@ testBadExp xStr = do
     showError $ runParser parseExpTop "input" xStr
   assertFailed "Type inference should fail" $
     myTestTcM $ tc Nothing x
+
+--------------------------------------------------------------------------------
+-- repl utilities
+--------------------------------------------------------------------------------
+
+-- search for a goodExpression
+findExp :: String -> String
+findExp query = case filter (("{-"++query) `isPrefixOf`) goodExpressions of
+  [x] -> x
+  []  -> error $ "Query not found: " ++ query
+  _   -> error $ "Multiple results for: " ++ query
 
 testExp' :: String -> IO ()
 testExp' x = 

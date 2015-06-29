@@ -24,7 +24,7 @@ module Util.MyPrelude
   , Char, String, (++), null, length, (!!)
   , sort, sortBy
   , take, drop, takeWhile, dropWhile, reverse
-  , zip, zipWith
+  , zip, zipWith, zipWith3, zipWith4
   , iterate, head, tail, init, last, filter
   , Monad(..), join, when, unless, (=<<), (>=>), (<=<), ap, liftM, liftM2
   , zipWithM
@@ -91,7 +91,7 @@ import Data.Maybe
 import Data.Either
 import Data.Function
 import Data.Ord
-import Data.List (intersperse,sort,sortBy,group,groupBy)
+import Data.List (intersperse,sort,sortBy,group,groupBy,zipWith3,zipWith4)
 import Data.Void
 
 import System.IO
@@ -272,10 +272,6 @@ class IsBool a where
 instance IsBool Bool where
   fromBool = id
 
-debug :: IsBool a => a
-debug = unsafePerformIO $ fromBool <$> readIORef debugVar
-{-# INLINE debug #-}
-
 debugVar :: IORef Bool
 debugVar = unsafePerformIO $ newIORef True -- default debugging
 {-# NOINLINE debugVar #-}
@@ -284,11 +280,29 @@ debugVar = unsafePerformIO $ newIORef True -- default debugging
 enableDebug :: Bool -> IO ()
 enableDebug = writeIORef debugVar
 
-traceM :: Monad m => String -> m ()
-traceM x = tracedM x $ return ()
+tracedIO :: String -> IO a -> IO a
+tracedIO msg mx = do
+  debug <- readIORef debugVar
+  if debug
+    then bracket (readIORef traceLevel >>= \lvl -> writeIORef traceLevel (succ lvl) >> return lvl)
+                 (writeIORef traceLevel) $ \lvl -> do
+      putStrLn (replicate (2*lvl) ' ' ++ msg)
+      mx
+    else mx
 
 traced :: String -> a -> a
-traced msg x = unsafePerformIO $ tracedM msg (x `seq` evaluate x)
+traced msg x = unsafePerformIO $ tracedIO msg (evaluate x)
+
+traceM :: Monad m => String -> m ()
+traceM msg = traced msg (return ())
+
+{-
+debug :: IsBool a => a
+debug = unsafePerformIO $ fromBool <$> readIORef debugVar
+{-# INLINE debug #-}
+
+traceM :: Monad m => String -> m ()
+traceM x = tracedM x $ return ()
 
 tracedM :: Monad m => String -> m a -> m a
 tracedM msg x = do
@@ -309,6 +323,7 @@ tracedM' :: Monad m => m String -> m a -> m a
 tracedM' msg x = do
   m <- msg
   tracedM m x
+-}
 
 {-# NOINLINE traceLevel #-}
 traceLevel :: IORef Int

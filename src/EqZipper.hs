@@ -1,12 +1,40 @@
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 module EqZipper where
 
 import Prelude ()
-import Data.List (inits,zipWith4)
+import Data.List (inits)
 import Util.MyPrelude
+import Util.PrettyM
 import Names
 import Syntax
 import Substitution
 import SubstitutionQQ
+
+--------------------------------------------------------------------------------
+-- Values of Eq types
+--------------------------------------------------------------------------------
+
+-- A value of an Eq type.
+-- The integer indicates the number of times it is to be unwrapped.
+-- The idea is that
+--    WrappedExp 0 x == WrappedExp 1 (Refl x)
+--    WrapepdExp 1 x == WrappedExp 0 (x^Var 0)
+data WrappedExp = WrappedExp !Int Exp
+
+wrappedExp :: Exp -> WrappedExp
+wrappedExp = WrappedExp 0
+
+weToUnwrap :: WrappedExp -> WrappedExp
+weToUnwrap (WrappedExp 0 (Refl x)) = WrappedExp 0 (boundBody x)
+weToUnwrap (WrappedExp i x) = WrappedExp (i+1) x
+
+{-
+weToWrap :: Name -> WrappedExp -> WrappedExp
+
+weWrapped :: Name -> WrappedExp -> WrappedExp
+weWrapped
+-}
 
 --------------------------------------------------------------------------------
 -- Zipper for Eq values
@@ -14,30 +42,43 @@ import SubstitutionQQ
 
 -- A path through Eq's
 -- the type "Eq_i (Eq_j A a b) c d" is represented by path [EqStep j a b,EqStep i c d] and root type A
--- note that the path specifies extra variables that are free in the type A
+-- note: that the path specifies extra variables that are free in the type A
+-- note2: the word 'path' refers to zipper terminology (a path up through the structure of the data type),
+--        not path in the homotopy sense (an equality type)
+--
+-- notation:
+--  Γ |- a : Set
+--  -------------
+--  Γ |- [] : path a
+--
+--  Γ |- ps : path (Eq_j a u v) 
+--  --------------------
+--  Γ |- (EqStep j u v:ps) : path a
 type EqPath = [EqStep]
 data EqStep = EqStep Name Exp Exp
   deriving (Show)
 
--- reverse the zipper
+-- Names of the index variables
+ezNames :: EqPath -> [Name]
+ezNames = map (\(EqStep j _ _) -> j)
+
+-- reverse the zipper.
+-- notation:
+--   Γ,ezNames p |- a : Set
+--   ----------------------
+--   Γ |- ezType a p : Set
 ezType :: Exp -> EqPath -> Exp
 ezType a0 ws = foldl step a0 ws
   where
   step a (EqStep j u v) = Eq (Bound j a) u v
 
+-- Find the 'largest' path p, such that
+-- (p,a) = ezFromType a0  ==>  a0 = ezType a p 
 ezFromType :: Exp -> (Exp,EqPath)
 ezFromType a0 = go a0 []
   where
   go (Eq (Bound j a) u v) path = go a (EqStep j u v:path)
   go a path = (a,path)
-
-ezMapExp :: (Exp -> Exp) -> EqPath -> Exp -> Exp
-ezMapExp f ws x = ezWrap ws (f (ezUnwrap ws x))
-
-ezMapPath :: (Exp -> Exp) -> EqPath -> EqPath
-ezMapPath f ws = zipWith step ws (inits ws)
-  where
-  step (EqStep j u v) inner = EqStep j (ezMapExp f (ezSubstPath I1 inner) u) (ezMapExp f (ezSubstPath I2 inner) v)
 
 ezSubstPath :: Exp -> EqPath -> EqPath
 ezSubstPath x ws = zipWith step ws [0..]
@@ -56,8 +97,55 @@ ezSubstExp :: Exp -> EqPath -> Exp -> Exp
 ezSubstExp x ws y = substAt (length ws) x y
 -}
 
+-- unwrap a boxed value into a larger context
+--  Γ,ezNames p,Δ |- a : Set
+--  Γ,Δ |- p : path a
+--  Γ,Δ |- x : ezType a p
+--  -------------------
+--  Γ,ezNames p,Δ |- ezUnwrap |Δ| p x : a
+ezUnwrap :: Int -> EqPath -> Exp -> Exp
+ezUnwrap delta ws x0 = foldr step (raiseAtBy delta n x0) (zip ws [0..])
+  where
+  n = length ws
+  step (_, i) (Refl x) = substBound x (Var (i+delta))
+  step (EqStep _j u v, i) x = IV (raiseAtBy delta (i+1) u) (raiseAtBy delta (i+1) v) x (Var (i+delta))
+
+-- wrap an expression in refls
+--  Γ, ezNames p |- x : a
+--  -------------------
+--  Γ |- ezWrap p : ezType a p
+ezWrap :: EqPath -> Exp -> Exp
+ezWrap ws x0 = ezWrapNames (ezNames ws) x0
+
+-- wrap an expression in refls
+--  Γ,js |- x : a
+--  -------------------
+--  Γ |- ezWrapNames js : ezType a p,  where j = ezNames p
+ezWrapNames :: [Name] -> Exp -> Exp
+ezWrapNames js x0 = foldl step x0 js
+  where
+  step x j = Refl (Bound j x)
+
+ezWrapNamesPath :: [Name] -> Exp -> EqPath
+ezWrapNamesPath js0 x = zipWith3 step js0 (inits js0) [0..]
+  where
+  step j js i = EqStep j (ezWrapNames js (substAt i I1 x)) (ezWrapNames js (substAt i I2 x))
+
+-- map inside refls
+--  ∀ Δ. Δ |- x : a  ==>  Δ |- f x : b
+--  Γ |- x : ezType a p
+--  --------------------
+--  Γ |- ezMapExp f p x : ezType b (ezMapPath f p)
+ezMapExp :: (Exp -> Exp) -> EqPath -> Exp -> Exp
+ezMapExp f ws x = ezWrap ws (f (ezUnwrap 0 ws x))
+
+ezMapPath :: (Exp -> Exp) -> EqPath -> EqPath
+ezMapPath f ws = zipWith step ws (inits ws)
+  where
+  step (EqStep j u v) inner = EqStep j (ezMapExp f (ezSubstPath I1 inner) u) (ezMapExp f (ezSubstPath I2 inner) v)
+
 ezZipExp :: (Exp -> Exp -> Exp) -> EqPath -> Exp -> EqPath -> Exp -> Exp
-ezZipExp f ws x ws' x' = ezWrap ws (f (ezUnwrap ws x) (ezUnwrap ws' x'))
+ezZipExp f ws x ws' x' = ezWrap ws (f (ezUnwrap 0 ws x) (ezUnwrap 0 ws' x'))
 
 ezZipPath :: (Exp -> Exp -> Exp) -> EqPath -> EqPath -> EqPath
 ezZipPath f ws ws' = zipWith4 step ws (inits ws) ws' (inits ws')
@@ -66,23 +154,6 @@ ezZipPath f ws ws' = zipWith4 step ws (inits ws) ws' (inits ws')
     EqStep j (ezZipExp f (ezSubstPath I1 inner) u (ezSubstPath I1 inner') u')
              (ezZipExp f (ezSubstPath I2 inner) v (ezSubstPath I2 inner') v')
 
-{-
-ezZipValue :: (Exp -> Exp -> Exp) -> EqValue -> EqValue -> EqValue
-ezZipValue f (EqVal ws x) (EqVal ws' x') = EqVal (ezZipPath f ws ws') (ezZipExp f ws x ws' x')
--}
-
--- unwrap a boxed value into a larger context
-ezUnwrap :: EqPath -> Exp -> Exp
-ezUnwrap ws x0 = foldr step (raiseBy n x0) (zip ws [0..])
-  where
-  n = length ws
-  step (EqStep _j u v, i) x = IV (raiseBy (i+1) u) (raiseBy (i+1) v) x (Var i)
-
-ezWrap :: EqPath -> Exp -> Exp
-ezWrap ws x0 = foldl step x0 ws
-  where
-  step x (EqStep j _ _) = Refl (Bound j x)
-
 --------------------------------------------------------------------------------
 -- Values, used for casting
 --------------------------------------------------------------------------------
@@ -90,6 +161,13 @@ ezWrap ws x0 = foldl step x0 ws
 -- A value of an Eq type
 -- Note that the value has no extra free variables
 -- On the other hand, the path has 1 extra free variable, namely the variable that is being cast along (Var 0)
+--
+-- Γ |- idx : Interval
+-- Γ,i |- p : path a
+-- Γ,i,p |- a : Set
+-- Γ |- x : ezType a[i=idx] p[i=idx]
+-- ---------------------------------
+-- Γ |- castEqValue p x idx : CastEqValue a
 data CastEqValue = CastEqValue
   { cevPath       :: EqPath
   , cevValue      :: Exp
@@ -97,33 +175,91 @@ data CastEqValue = CastEqValue
   }
   deriving (Show)
 
+-- Γ |- cev : CastEqValue (Eq_j a u v)
+-- -----------------------------------
+-- Γ |- cevPush j u v cev : CastEqValue a
 cevPush :: Name -> Exp -> Exp -> CastEqValue -> CastEqValue
 cevPush j u v cev = cev { cevPath = EqStep j u v : cevPath cev }
 
 cevDepth :: CastEqValue -> Int
 cevDepth = length . cevPath
 
+cevNames :: CastEqValue -> [Name]
+cevNames = ezNames . cevPath
+
 -- is the index used anywhere in the path?
 cevIndexIsFree :: CastEqValue -> Bool
-cevIndexIsFree cev = or $ zipWith f (cevPath cev) [0..]
+cevIndexIsFree cev = or $ zipWith step (cevPath cev) [0..]
   where
   n = cevDepth cev
-  f (EqStep _ u v) i = isFree (n-1-i) u || isFree (n-1-i) v
+  step (EqStep _ u v) i = isFree (n-1-i) u || isFree (n-1-i) v
 
---cevFromValue :: Exp -> Exp -> 
 
---cevSourceType :: 
+-- Γ,i,js |- a : Type
+-- Γ,js,Δ |- idx, idx' : Interval
+-- Γ,js,Δ |- x : a[i=idx,js=js]
+-- --------------------------
+-- Γ,js,Δ |- cevConvertValue js |Δ| a idx idx' x : CastEqValue (raiseBy (n+delta) a)
+cevConvertValue :: [Name] -> Int -> Exp -> Exp -> Exp -> Exp -> CastEqValue
+cevConvertValue js delta a idx idx' x =
+  cevSimpleValue js a'' idx idx' $ -- with Γ = Γ,js,Δ
+  ezConvertValue js delta a' x -- Γ,js,Δ,js' : _ : a[i=idx,js=js']
+  where
+  n = length js
+  a' = substAt (n+delta) idx $ raiseBy delta a -- Γ,js,Δ |- a' = a[i=idx]
+  a'' = raiseAtBy (n+1) (n+delta) a --  Γ,js,Δ,i,js' |- a'' = a[i=idx,js=js']
+  --idxD  = raiseBy (n+delta) idx  -- Γ,js,Δ |- idxD
+  --idxD' = raiseBy (n+delta) idx' -- Γ,js,Δ |- idxD'
+
+-- Γ,js,Δ |- a : Type
+-- Γ,js,Δ |- x : a[js=js]
+-- --------------------------
+-- Γ,js,Δ,js' |- ezConvertValue js |Δ| a x : a[js=js']
+ezConvertValue :: [Name] -> Int -> Exp -> Exp -> Exp
+ezConvertValue js delta a x0 = foldl step (raiseBy n x0) (zip js [0..])
+  where
+  n = length js
+  step x (j,i) = Cast (Bound j a') (Var (n+delta+i)) (Var i) x
+    where
+    a' = mapExp go a -- Γ,js,Δ,js',ji |- a'
+    go k | k <  delta     = var (k+n+1) -- Δ
+         | k <  delta + i = var (k-delta+1) -- ju with u<i
+         | k == delta + i = var 0
+         | otherwise      = var (k+n+1)
+
+-- Γ |- idx, idx' : Interval
+-- Γ,i,js |- a : Type
+-- Γ,js   |- x : a[i=idx,js=js]
+-- ----------------------------
+-- Γ |- cevSimpleValue js a idx idx' x : CastEqValue a
+cevSimpleValue :: [Name] -> Exp -> Exp -> Exp -> Exp -> CastEqValue
+cevSimpleValue js a idx idx' x = CastEqValue
+  { cevPath  = ezWrapNamesPath js xi
+  , cevValue = ezWrapNames js x'
+  , cevCurrentIdx = idx'
+  }
+  where
+  n = length js
+  ai = raiseToFront n a -- Γ,i',js,i |- ai
+  a' = moveToFront n a  -- Γ,js,i |- a'
+  -- Γ,i,js |- xi : a[i=i,js=js]
+  xi = Cast (Bound "i" ai) (raiseBy (n+1) idx) (Var n) (raiseAtBy n 1 x)
+  -- Γ,js |- x' : a[i=idx',js=js]
+  x' = Cast (Bound "i" a') (raiseBy n idx) (raiseBy n idx') x
 
 cevRaiseBy :: Int -> CastEqValue -> CastEqValue
-cevRaiseBy n cev = CastEqValue
-  { cevPath  = ezRaisePathAtBy 1 n (cevPath cev)
-  , cevValue = raiseBy n (cevValue cev)
-  , cevCurrentIdx = raiseBy n (cevCurrentIdx cev)
+cevRaiseBy delta cev = CastEqValue
+  { cevPath  = ezRaisePathAtBy 1 delta (cevPath cev)
+  , cevValue = raiseBy delta (cevValue cev)
+  , cevCurrentIdx = raiseBy delta (cevCurrentIdx cev)
   }
 
 cevRaiseTypeBy :: Int -> CastEqValue -> Exp -> Exp
 cevRaiseTypeBy n cev = raiseAtBy (cevDepth cev + 1) n
 
+-- Γ |- cev : CastEqValue a
+-- ------------------------
+-- Γ |- cevWrappedValue cev : cevType a cev
 cevType :: Exp -> CastEqValue -> Exp
 cevType a0 = ezType a0 . cevPath
 
@@ -145,14 +281,38 @@ ezMapValue :: (Exp -> Exp) -> EqValue -> EqValue
 ezMapValue f (EqVal ws x) = EqVal (ezMapPath f ws) (ezMapExp f ws x)
 -}
 
-cevZipWithValue :: (Exp -> Exp -> Exp) -> CastEqValue -> CastEqValue -> Exp
-cevZipWithValue f x y = ezZipExp f (cevCurrentPath x) (cevValue x) (cevCurrentPath y) (cevValue y)
+cevZipWith :: (Exp -> Exp -> Exp) -> CastEqValue -> CastEqValue -> CastEqValue
+cevZipWith f x y = CastEqValue
+  { cevPath  = ezZipPath f (cevPath x) (cevPath y)
+  , cevValue = ezZipExp  f (cevCurrentPath x) (cevValue x) (cevCurrentPath y) (cevValue y)
+  , cevCurrentIdx = cevCurrentIdx x -- current idx should be the same (not checked)
+  }
 
 cevWrappedValue :: CastEqValue -> Exp
 cevWrappedValue = cevValue
 
-cevUnwrappedValue :: CastEqValue -> Exp
-cevUnwrappedValue cev = ezUnwrap (cevCurrentPath cev) (cevValue cev)
+-- Γ |- cev : CastEqValue a
+-- ------------------------
+-- Γ,cevNames cev,Δ |- cevUnwrappedValue cev : a
+cevUnwrappedValue :: Int -> CastEqValue -> Exp
+cevUnwrappedValue delta cev = ezUnwrap delta (cevCurrentPath cev) (cevValue cev)
+
+--------------------------------------------------------------------------------
+-- Debugging
+--------------------------------------------------------------------------------
+
+instance (MonadBound Exp m, MonadBoundNames m) => Pretty m EqPath where
+  ppr _ xs0 = semiBrackets $ reverse (go (reverse xs0))
+    where
+    go :: (MonadBound Exp m, MonadBoundNames m) => EqPath -> [m Doc]
+    go [] = []
+    go (EqStep j u v:xs) =
+      align (text "EqStep" <+> ppr 11 j $/$ ppr 11 u $/$ ppr 11 v) : map (localBound (Named j Interval)) (go xs)
+instance (MonadBound Exp m, MonadBoundNames m) => Pretty m CastEqValue where
+  ppr p cev = group $ parenAlignIf (p > 10) $ text "CastEqValue"
+    $/$ localBound (Named "i" Interval) (ppr 11 (cevPath cev))
+    $/$ ppr 11 (cevValue cev)
+    $/$ ppr 11 (cevCurrentIdx cev)
 
 --------------------------------------------------------------------------------
 -- Tests

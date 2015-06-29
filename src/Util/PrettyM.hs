@@ -144,7 +144,8 @@ parenAlignIf :: Functor m => Bool -> m Doc -> m Doc
 parenAlignIf True  = parens . align
 parenAlignIf False = id
 
-semiBrackets, semiBraces :: Applicative m => [m Doc] -> m Doc
-semiBrackets = encloseSep lbracket rbracket semi
-semiBraces   = encloseSep lbrace   rbrace   semi
+semiBrackets, semiBraces, commaBrackets :: Applicative m => [m Doc] -> m Doc
+semiBrackets  = encloseSep lbracket rbracket semi
+semiBraces    = encloseSep lbrace   rbrace   semi
+commaBrackets = encloseSep lbracket rbracket comma
 

@@ -34,15 +34,25 @@ class TraverseChildren a a => Subst a where
 mapExp :: Subst a => (Int -> a) -> (a -> a)
 mapExp f = runIdentity . mapExpM (pure . f)
 
+-- Γ |- x
+-- ---------
+-- Γ,Δ |- raiseBy |Δ| x
 raiseBy :: Subst a => Int -> a -> a
 raiseBy 0 x = x
 raiseBy n (unVar -> Just x) = var (n + x)
 raiseBy n x = mapExp (\i -> var (n + i)) x
 
+-- Γ,E |- x
+-- ---------
+-- Γ,Δ,E |- raiseAtBy |E| |Δ| x
 -- raiseAtBy a b = raiseSubst b [var 0, var 1, var 2, .., var (a-1)]
 raiseAtBy :: Subst a => Int -> Int -> a -> a
 raiseAtBy m n = mapExp (\i -> if i < m then var i else var (n + i))
 
+-- Γ,x2,x1,x0 |- y
+-- Γ,Δ |- xi
+-- ---------
+-- Γ,Δ |- substs [x0,x1,x2] y
 raiseSubsts :: Subst a => Int -> [a] -> (a -> a)
 raiseSubsts n = mapExp . substsVar
   where
@@ -57,12 +67,24 @@ raiseSubstsM n = mapExpM . substsVarM
   substsVarM (x:_)  0 = x
   substsVarM (_:xs) i = substsVarM xs (i - 1)
 
+-- Γ,x2,x1,x0 |- y
+-- Γ |- xi
+-- ---------
+-- Γ |- substs [x0,x1,x2] y
 substs :: Subst a => [a] -> (a -> a)
 substs = raiseSubsts 0
 
+-- Γ,x |- y
+-- Γ |- x
+-- ---------
+-- Γ |- subst x y
 subst1 :: Subst a => a -> (a -> a)
 subst1 x = substs [x]
 
+-- Γ,x,Δ |- y
+-- Γ,Δ |- x
+-- ---------
+-- Γ,Δ |- substAt |Δ| x y
 substAt :: Subst a => Int -> a -> (a -> a)
 substAt n x = mapExp substVar
   where
@@ -70,6 +92,10 @@ substAt n x = mapExp substVar
              | i == n    = x
              | otherwise = var (i-1)
 
+-- Γ,x,Δ |- y
+-- Γ |- x
+-- ---------
+-- Γ,Δ |- substRaiseAt |Δ| x y
 substRaiseAt :: Subst a => Int -> a -> (a -> a)
 substRaiseAt n x = substAt n (raiseBy n x)
 
@@ -78,6 +104,35 @@ substsN Empty = id
 substsN xs = mapExp $ \i -> if i < Seq.length xs
   then Seq.index xs i
   else var (i - Seq.length xs)
+
+-- Γ,x,Δ |- y
+-- ---------
+-- Γ,x',Δ,x |- raiseToFront |Δ| y
+raiseToFront :: Subst a => Int -> a -> a
+raiseToFront n = mapExp go
+  where
+  go i | i == n    = var 0
+       | otherwise = var (i+1)
+
+-- Γ,x,Δ |- y
+-- ---------
+-- Γ,Δ,x |- moveToFront |Δ| y
+moveToFront :: Subst a => Int -> a -> a
+moveToFront n = mapExp go
+  where
+  go i | i < n     = var (i+1)
+       | i == n    = var 0
+       | otherwise = var i
+
+-- Γ,x1..xn,Δ,x1'..xn' |- y
+-- ------------------------
+-- Γ,x1..xn,Δ |- joinVariables delta n y = y[xi'=xi]
+--             = substs [var delta, var (delta+1), ..., var (delta+n-1)] y
+joinVariables :: Subst a => Int -> Int -> a -> a
+joinVariables delta n = mapExp go
+  where
+  go i | i < n     = var (i + delta)
+       | otherwise = var (i - n)
 
 -- does a variable occur free in the given expression
 varUsed :: Subst a => Int -> a -> Bool

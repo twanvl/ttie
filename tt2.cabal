@@ -20,6 +20,11 @@ library
     Util.Pretty
     Util.WLPPrint
     Names
+    Substitution
     Tokenizer
+    Syntax
+    TcMonad
+    Eval
+    Typing
   hs-source-dirs: src
 

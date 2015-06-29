@@ -51,7 +51,7 @@ data Bound a = Bound
   --, boundFree :: Names -- names free in the body
   , boundBody :: a
   }
-  deriving (Show,Functor)
+  deriving (Functor)
 -- Note: Bound is not Traversible, to prevent mistakes wrt. keeping track of the bound values
 -- see TraverseBound class below
 
@@ -173,8 +173,12 @@ instance Applicative f => MonadBound exp (NamesT f) where
   localBound x = NamesT . local' (namedName x <|) . unNamesT
 instance (Applicative f, Monad f) => MonadBoundNames (NamesT f) where
   boundNames = NamesT ask
+
+runNamesTWith :: Seq Name -> NamesT f a -> f a
+runNamesTWith names = flip runReaderT names . unNamesT
+
 runNamesT :: NamesT f a -> f a
-runNamesT = flip runReaderT Seq.empty . unNamesT
+runNamesT = runNamesTWith Seq.empty
 
 --------------------------------------------------------------------------------
 -- Traversing children of expressions
@@ -201,10 +205,13 @@ instance Pretty m a => Pretty m (Named a) where
   ppr p (Named "" a) = ppr p a
   ppr p (Named n  a) = group $ parenIf (p > 0) $ ppr 1 n $/$ text ":" <+> ppr 0 a
 
-instance Pretty m a => Pretty m (Bound a) where
-  ppr p (Bound n a) = group $ parenIf (p > 0) $ brackets (ppr 0 n) <+> ppr 0 a
+instance (MonadBound () m, Pretty m a) => Pretty m (Bound a) where
+  ppr p (Bound n a) = group $ parenIf (p > 0) $ brackets (ppr 0 n) <+> localBound (Named n ()) (ppr 0 a)
 
 instance Pretty m a => Pretty m (Arg a) where
   ppr p (Arg Visible a) = ppr p a
   ppr _ (Arg Hidden  a) = braces $ ppr 0 a
+
+instance Pretty (NamesT Identity) a => Show (Bound a) where
+  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
 

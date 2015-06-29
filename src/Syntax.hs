@@ -394,6 +394,10 @@ instance Show Decl where
 showExp :: NamesT Identity Doc -> String
 showExp = showDoc . runIdentity . runNamesT
 
+-- for debugging: show assuming the given names
+showWithNames :: Pretty (NamesT Identity) a => [Name] -> a -> String
+showWithNames names = showDoc . runIdentity . runNamesTWith (Seq.fromList names) . ppr 0
+
 --------------------------------------------------------------------------------
 -- Parsing
 --------------------------------------------------------------------------------

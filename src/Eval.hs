@@ -111,7 +111,7 @@ evalCast e (Bound i a) i1 i2 x =
       , cevPath = []
       , cevCurrentIdx = i1
       }
-
+{-
 --evalCast _ _ I1 I1 y = y
 --evalCast _ _ I2 I2 y = y
 evalCast _ _ j1 j2 y | j1 == j2 = y
@@ -196,6 +196,7 @@ evalCast e [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore e
 --evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
 --
 evalCast _ a j1 j2 x = Cast a j1 j2 x
+-}
 
 -- reduction of "Cast (Bound i (ezType p a)) i1 i2 x"
 evalCast' :: EvalEnv -> Name -> Exp -> Exp -> CastEqValue -> CastEqValue
@@ -205,7 +206,7 @@ evalCast' e i (Eq (Bound j a) u v) i2 x =
 evalCast' _ _ a i2 x | not (cevIndexIsFree x) && not (isFree (cevDepth x) a) = x'
   where
   x' = x { cevCurrentIdx = i2 }
-evalCast' e i (Si (Arg h a) b) i2 x = x12
+evalCast' e i (Si (Arg h a) b) i2 x = x12''
   where
   proj1 = evalProj e h Proj1
   proj2 = evalProj e h Proj2
@@ -213,33 +214,48 @@ evalCast' e i (Si (Arg h a) b) i2 x = x12
   x2 = cevMap proj2 x
   x1' = evalCast' e i a i2 x1
   x1i = evalCast' e i (raiseAtBy (cevDepth x+1) 1 a) (Var 0) (cevRaiseBy 1 x1)
-  x2' = evalCast' e i (substBound b (cevUnwrappedValue x1i)) i2 x2
+  x2' = evalCast' e i (substBound b (cevUnwrappedValue 0 x1i)) i2 x2
   ab' = substRaiseAt (cevDepth x) i2 (Si (Arg h a) b)
-  x12 = CastEqValue
-    { cevValue = cevZipWithValue (\u v -> Pair h u v ab') x1' x2'
-    , cevPath  = cevPath x
-    , cevCurrentIdx = i2
-    }
-{-
-evalCast' e i (Pi (Arg h a) b) i2 f = f'
+  x12' = cevZipWith (\u v -> Pair h u v ab') x1' x2'
+  x12'' = x12' { cevPath  = cevPath x }
+evalCast' e i (Pi (Arg h a) b) i2 f {-|
+  traced ("  a   = " ++ showWithNames (js++"i":gamma) a ++ "\n" ++
+          "  b   = " ++ showWithNames (js++"i":gamma) b ++ "\n" ++
+          "  f   = " ++ showWithNames gamma f ++ "\n" ++
+          "  i2' = " ++ showWithNames (js++gamma) (raiseBy (cevDepth f) i2) ++ "\n" ++
+          "  a'  = " ++ showWithNames (js++gamma) a' ++ "\n" ++
+          --"  x   = " ++ showWithNames (js'++"x":js++gamma) xV ++ "\n" ++
+          "  x   = " ++ showWithNames ("x":js++gamma) x ++ "\n" ++
+          "  xi  = " ++ showWithNames ("i":"x":js++gamma) xi ++ "\n" ++
+          "  xi' = " ++ showWithNames (js'++"i":"x":js++gamma) (cevUnwrappedValue 0 xi) ++ "\n" ++
+          --"  f'  = " ++ showWithNames ("x":js++gamma) f' ++ "\n" ++
+          "  f x = " ++ showWithNames ("x":js++gamma) fx ++ "\n" ++
+          "  b'  = " ++ showWithNames (js'++"i":"x":js++gamma) b' ++ "\n" ++
+          "  b'x = " ++ showWithNames (js'++"i":"x":js++gamma) b'x ++ "\n" ++
+          "  fx' = " ++ showWithNames ("x":js++gamma) fx' ++ "\n" ++
+          "  fxU = " ++ showWithNames (js'++"x":js++gamma) (cevUnwrappedValue 0 fx') ++ "\n" ++
+          "  fxJ = " ++ showWithNames ("x":js++gamma) fx'' ++ "\n" ++
+          "  f'' = " ++ showWithNames (gamma) f'' ++ "\n" ++
+          ""
+  ) True-}
+  = f''
   where
-  x    = cevVar (cevDepth f) a i2 (Var 0)
-  x'   = evalCast e i (raiseAtBy n 1 a) (raiseBy 1 i2) x
-  xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0) (Var 1)
-  fx'  = App (raiseBy 1 f) (Arg h x')
-  fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
-  a2   = substRaiseAt (cevDepth f) i2 a
-  f'   = CastEqValue
-    { cevValue = Lam (Arg h a2) (Bound (boundName b) fx)
+  i1 = cevCurrentIdx f
+  js = cevNames f
+  x  = cevConvertValue js 1 a (raiseBy (cevDepth f+1) i2) (raiseBy (cevDepth f+1) i1) (Var 0)
+  xi = cevConvertValue js 2 a (raiseBy (cevDepth f+2) i2) (Var 0) (Var 1)
+  f' = cevRaiseBy (cevDepth f + 1) f
+  fx = cevZipWith (\u v -> App u (Arg h v)) f' x
+  b' = raiseAtBy (cevDepth f+2) (cevDepth f+1) <$> b
+  b'x = substBound b' (cevUnwrappedValue 0 xi)
+  fx' = evalCast' e i b'x (raiseBy (cevDepth f+1) i2) fx
+  fx'' = joinVariables 1 (cevDepth f) $ cevUnwrappedValue 0 fx'
+  a' = substAt (cevDepth f) (raiseBy (cevDepth f) i2) a
+  f'' = CastEqValue
+    { cevValue = evalMore e $ ezWrapNames (cevNames f) $ Lam (Arg h a') $ Bound (boundName b) fx''
     , cevPath  = cevPath f
     , cevCurrentIdx = i2
     }
-  where
-  x'   = evalCast e (Bound i $ raiseAtBy 1 1 a) (raiseBy 1 j2) (raiseBy 1 j1) (Var 0)
-  xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0)        (Var 1)
-  fx'  = App (raiseBy 1 f) (Arg h x')
-  fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
--}
 evalCast' _ i a i2 x = x'
   where
   x' = x
