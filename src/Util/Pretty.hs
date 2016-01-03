@@ -23,10 +23,10 @@ import Util.MyPrelude
 import Text.PrettyPrint.HughesPJ hiding ((<>),($$),(<+>),first)
 import qualified Text.PrettyPrint.HughesPJ as PP
 #elif USE_REAL_WL_PPRINT
-import Text.PrettyPrint.Leijen hiding (Pretty,empty,pretty,(<$>),(<$$>),(<>),(</>),(<//>))
+import Text.PrettyPrint.Leijen hiding (Pretty,empty,pretty,($$),(<$$>),(<>),(</>),(<//>))
 import qualified Text.PrettyPrint.Leijen as PP
 #else
-import Util.WLPPrint hiding (Pretty,empty,pretty,(<$>),(<$$>),(<>))
+import Util.WLPPrint hiding (Pretty,empty,pretty,($$),(<$$>),(<>))
 import qualified Util.WLPPrint as PP
 #endif
 
@@ -67,7 +67,7 @@ showDoc :: Doc -> String
 showDoc = flip displayS "" . renderPretty 0.8 110
 
 ($$) :: Doc -> Doc -> Doc
-($$) = (PP.<$>)
+($$) = (PP.$$)
 
 ($-$) :: Doc -> Doc -> Doc
 ($-$) = (PP.<$$>)

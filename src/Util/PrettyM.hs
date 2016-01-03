@@ -33,7 +33,7 @@ showsDoc :: Doc -> ShowS
 showsDoc = showString . showDoc
 
 ($$),(<.>),(<+>),($/$),($-$) :: Applicative m => m Doc -> m Doc -> m Doc
-($$) = liftA2 (PP.<$>)
+($$) = liftA2 (PP.$$)
 (<.>) = liftA2 (PP.<>)
 (<+>) = liftA2 (PP.<+>)
 ($/$) = liftA2 (PP.$/$)

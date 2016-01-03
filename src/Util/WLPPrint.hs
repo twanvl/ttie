@@ -31,7 +31,7 @@ module Util.WLPPrint (
    align, hang, indent, encloseSep, list, tupled, semiBraces,
 
    -- * Operators
-   (<+>), (<$>), (</>), (<$$>), (<//>),
+   (<+>), ($$), (</>), (<$$>), (<//>),
 
    -- * List combinators
    hsep, vsep, fillSep, sep, hcat, vcat, fillCat, cat, punctuate,
@@ -67,7 +67,7 @@ module Util.WLPPrint (
 
 import System.IO (Handle,hPutStr,hPutChar,stdout)
 
-infixr 5 </>,<//>,<$>,<$$>
+infixr 5 </>,<//>,$$,<$$>
 infixr 6 <>,<+>
 
 
@@ -223,7 +223,7 @@ hsep            = fold (<+>)
 --      out
 -- @
 vsep :: [Doc] -> Doc
-vsep            = fold (<$>)
+vsep            = fold ($$)
 
 -- | The document @(cat xs)@ concatenates all documents @xs@ either
 -- horizontally with @(\<\>)@, if it fits the page, or vertically with
@@ -281,8 +281,8 @@ x <//> y        = x <> softbreak <> y
 
 -- | The document @(x \<$\> y)@ concatenates document @x@ and @y@ with a
 -- 'line' in between. (infixr 5)
-(<$>) :: Doc -> Doc -> Doc
-x <$> y         = x <> line <> y
+($$) :: Doc -> Doc -> Doc
+x $$ y         = x <> line <> y
 
 -- | The document @(x \<$$\> y)@ concatenates document @x@ and @y@ with
 -- a @linebreak@ in between. (infixr 5)
@@ -606,7 +606,7 @@ hang i d        = align (nest i d)
 -- As an example, we will put a document right above another one,
 -- regardless of the current nesting level:
 --
--- > x $$ y  = align (x <$> y)
+-- > x $$ y  = align (x $$ y)
 --
 -- > test    = text "hi" <+> (text "nice" $$ text "world")
 --
@@ -632,7 +632,7 @@ align d         = column (\k ->
 -- prints document @doc@ with a page width of 100 characters and a
 -- ribbon width of 40 characters.
 --
--- > show (text "hello" <$> text "world")
+-- > show (text "hello" $$ text "world")
 --
 -- Which would return the string \"hello\\nworld\", i.e.
 --
@@ -704,7 +704,7 @@ beside x y      = Cat x y
 -- indentation level increased by i (See also 'hang', 'align' and
 -- 'indent').
 --
--- > nest 2 (text "hello" <$> text "world") <$> text "!"
+-- > nest 2 (text "hello" $$ text "world") $$ text "!"
 --
 -- outputs as:
 --
@@ -934,6 +934,6 @@ groups = vcat . map group
 -- | Either (x <+> y) or (x $$ indent 2 y)
 -- aka. group (x $+$ softindent 2 y)
 ($/$) :: Doc -> Doc -> Doc
-x $/$ y = group $ x <> nest 2 (empty <$> y)
+x $/$ y = group $ x <> nest 2 (empty $$ y)
 --x $/$ y = group (x $+$ softindent 2 y)
 
