@@ -76,33 +76,6 @@ data SumCtor = SumCtor { ctorName :: Name, ctorType :: Exp } -- n : a
 data SumCase = SumCase { caseName :: Name, caseType :: Exp, caseBody :: Bound Exp } -- n (x:a) -> b
   deriving (Eq)
 
--- Declarations
-data Decl
-  = DeclType
-    { declNames :: [Name]
-    , declType  :: Exp
-    }
-  | Rule
-    { declLHS :: Exp
-    , declRHS :: Exp
-    }
-  {-| DataDecl
-    { declName  :: Name
-    , declArgs  :: Telescope
-    , declType  :: Exp
-    , declCtors :: 
-    }-}
-
-{-
--- Data types
-data DataType
-  = DataType
-    { dataArgs :: Telescoped a
-data Telescoped a
-  = TNil a
-  | TCons (Arg Exp) (Bound Telescope)
--}
-
 pattern Pi  x y = Binder PiB  x y
 pattern Si  x y = Binder SiB  x y
 pattern Lam x y = Binder LamB x y
@@ -152,6 +125,22 @@ maxLevel (Level i j) (Level i' j') = Level (max i i') (TM.unionWith max j j')
 
 maxLevels :: [Level] -> Level
 maxLevels = foldr maxLevel zeroLevel
+
+--------------------------------------------------------------------------------
+-- Declarations
+--------------------------------------------------------------------------------
+
+-- Declarations
+data Decl
+  = Postulate
+    { declType  :: Exp }
+  | FunDecl
+    { declType  :: Exp
+    , declValue :: Exp }
+
+declTryValue :: Decl -> Maybe Exp
+declTryValue (Postulate _) = Nothing
+declTryValue (FunDecl _ x) = Just x
 
 --------------------------------------------------------------------------------
 -- Constructors / combinators
@@ -371,14 +360,14 @@ instance Applicative m => Pretty m Level where
   ppr _ (IntLevel i) = int i
   ppr _ (Level l ls) = semiBrackets $ [int l|l>0] ++ [ ppr 0 mv <.> if i == 0 then emptyDoc else text "+" <.> int i | (mv,i) <- TM.toList ls]
 
-instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Decl where
-  ppr p (DeclType names typ) = group $ parenIf (p > 0) $ hsep (map (ppr 0) names) $/$ text ":" <+> ppr 0 typ
-  ppr p (Rule lhs rhs)       = group $ parenIf (p > 0) $ ppr 0 lhs $/$ text "=" <+> ppr 0 rhs
-
 instance Applicative m => Pretty m MetaVar where
   ppr _ (TV.TV i) = text "?" <.> ppr 0 i
 instance Applicative m => Pretty m LevelMetaVar where
   ppr _ (TV.TV i) = text "?l" <.> ppr 0 i
+
+pprDecl :: (MonadBound Exp m, MonadBoundNames m) => Name -> Decl -> m Doc
+pprDecl n (Postulate ty) = text n <+> text ":" <+> ppr 0 ty
+pprDecl n (FunDecl ty val) = text n <+> (text "=" <+> ppr 0 ty $$ text ":" <+> ppr 0 val)
 
 instance Show Exp where
   showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
@@ -389,7 +378,7 @@ instance Show SumCase where
 instance Show Level where
   showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
 instance Show Decl where
-  showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
+  showsPrec _ = showsDoc . runIdentity . runNamesT . pprDecl "_"
 
 showExp :: NamesT Identity Doc -> String
 showExp = showDoc . runIdentity . runNamesT
@@ -587,6 +576,7 @@ parseSumCase = do
   y <- parseExp 0
   return $ SumCase n x (capture m y)
 
+{-
 parseDecl :: Parser Decl
 parseDecl = do
   lhs <- parseExp 1
@@ -602,6 +592,7 @@ parseDecls :: Parser [Decl]
 parseDecls = withIndentation (many $ parseDecl0) <* tokWS <* eof
   where
   parseDecl0 = try (tokWS >> notIndented) >> withIndentation parseDecl
+-}
 
 --------------------------------------------------------------------------------
 -- Testing
@@ -612,6 +603,6 @@ parseExpTop = (tokWS *> parseExp 0 <* eof)
 
 pe :: String -> Exp
 pe = testParser parseExpTop
-pd :: String -> [Decl]
-pd = testParser parseDecls
+--pd :: String -> [Decl]
+--pd = testParser parseDecls
 

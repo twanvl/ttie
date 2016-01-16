@@ -17,6 +17,8 @@ import Names
 import TcMonad
 import EqZipper
 
+import qualified Data.Map as Map
+
 --------------------------------------------------------------------------------
 -- Evaluation
 --------------------------------------------------------------------------------
@@ -27,7 +29,7 @@ data EvalStrategy = WHNF | NF | MetaOnly | OneStep
 data EvalEnv = EvalEnv
   { evalStrategy  :: EvalStrategy
   , evalMetaValue :: MetaVar -> Seq Exp -> Maybe Exp
-  --, evalGlobal :: Name -> Seq Exp -> Maybe Exp
+  , evalGlobal :: Name -> Maybe Exp
   --, evalGlobals
   }
 
@@ -41,6 +43,7 @@ eval e x = evalHere e $ mapChildren (evalMore e) x
 
 evalHere :: EvalEnv -> Exp -> Exp
 evalHere e (TypeSig x _ty)  = evalMore  e x
+evalHere e (Free x) | Just val <- evalGlobal e x = evalMore e val
 evalHere e (App x y)        = evalApp   e x y
 evalHere e (Proj h p x)     = evalProj  e h p x
 evalHere e (SumElim x ys z) = evalCase  e x ys z
@@ -111,99 +114,14 @@ evalCast e (Bound i a) i1 i2 x =
       , cevPath = []
       , cevCurrentIdx = i1
       }
-{-
---evalCast _ _ I1 I1 y = y
---evalCast _ _ I2 I2 y = y
-evalCast _ _ j1 j2 y | j1 == j2 = y
-evalCast _ (NotBound _) _ _ y = y
---
-{-evalCast e [qq|[$i](Pi (Arg $h a) [$x]b)|] j1 j2 y = evalMore e
-  [qq| Lam (Arg $h a[i=j2[]]) [$x]
-       (Cast ([$i]b[i,x=Cast ([$i]a[i]) j2[] i x]) j1[] j2[]
-             (App y[] (Arg $h (Cast ([$i]a[i]) j2[] j1[] x)))) |]
--}
---
-{-
-evalCast e [qq|[$i](Si (Arg $h a) [$x]b)|] j1 j2 y = evalMore e
-  [qq| Pair (Arg $h (Cast [$i]a j1[] j2[] (Proj (Arg $h Proj1) y)))
-                    (Cast [$i]b[i,x=Cast [$i]a[i] j1[] i (Proj (Arg $h Proj1) y[])]
-                          j1[] j2[] (Proj (Arg $h Proj2) y))
-            (Si (Arg $h a[i=j2[]]) [$x]b[i=j2[],x]) |]
--}
---
-evalCast e (Bound i (Pi (Arg h a) (Bound x b))) j1 j2 f =
-  Lam (Arg h (subst1 j2 a)) (Bound x fx'')
-  where
-  x'   = evalCast e (Bound i $ raiseAtBy 1 1 a) (raiseBy 1 j2) (raiseBy 1 j1) (Var 0)
-  xi   = evalCast e (Bound i $ raiseAtBy 1 2 a) (raiseBy 2 j2) (Var 0)        (Var 1)
-  fx'  = App (raiseBy 1 f) (Arg h x')
-  fx'' = evalCast e (Bound i $ raiseSubsts 2 [xi, Var 0] b) (raiseBy 1 j1) (raiseBy 1 j2) fx'
---
-evalCast e (Bound i (Si (Arg h a) b)) j1 j2 y =
-  Pair h y1' y2' (Si (Arg h (subst1 j2 a)) (fmap (substRaiseAt 1 j2) b))
-  where
-  proj1 = evalProj e h Proj1
-  proj2 = evalProj e h Proj2
-  y1 = proj1 y
-  y2 = proj2 y
-  y1' = evalCast e (Bound i a) j1 j2 y1
-  y1i = evalCast e (Bound i $ raiseAtBy 1 1 a) (raiseBy 1 j1) (Var 0) (raiseBy 1 y1)
-  y2' = evalCast e (Bound i $ substBound b y1i) j1 j2 y2
---
-evalCast e [qq|[$i](SumTy xs)|] j1 j2 (SumVal n y _)
-  | Just ty <- traverse (map ctorType . find ((==n) . ctorName)) xs
-  = evalMore e [qq|SumVal n (Cast [$i]ty j1 j2 y) tyxs[i=j2]|]
-  where tyxs = SumTy <$> xs
---evalCast s [qq|(Bound i (Eq a x y))|] [qq|Refl (Bound _ z)|] = evalFwRefl i a x y z
-evalCast e [qq|[$i](Eq [$_j]_a[_j] _x[] y)|] I1 I2 [qq|Refl (NotBound _)|] = evalMore e
-  [qq| Refl [$i]y[i] |]
---
-{-
-evalCast s [qq|[$i](Eq [$j](Pi (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore s
-  [qq| Refl [$j](Lam (Arg $h a[i=$i2,j])
-            [$x](IV () () (Cast [$i]eqij[i,j1=j] i1[] i2[] ) j) )|]
-  where
-  xj2 = [qq|[~j1][~j2][~x]Cast ([$j]a[i2[],j]) j1 j2 x|] -- : A i2 j2
-  xij = [qq|[~i][~j1][~j2][~x]Cast ([$i]a[i,j=j2]) i2[] i xj[j1,j2,x]|]
-  xj1 = [qq|[~i][~j1][~j2][~x]IV (xij[i,j1,j2=I1,x])
-                                 (xij[i,j1,j2=I2,x])
-                                 (Cast ([$i]Eq ([$j]a[i,j]) xij[i,j1,j2=I1,x] xij[i,j1,j2=I2,x]) i2[] i
-                                       (Refl [$j]xj2[j1,j2=j,x]))
-                                 j2|] -- : A i j2
-  bij = [qq|[~i][~j1][~j2][~x]
-  eqj = [qq|[~i][~j1][~x] Eq ([$j]b[i,j,x=xj1[i,j1,x]])
-  --
-  xu = [qq|[~x]IV u
-  x2 = [qq|[~x]Cast ([$i](Eq [$j]a[i,j] () ()) $i2 $i1 x |]-}
---
-evalCast e [qq|[$i](Eq [$j](Si (Arg $h a) [$x]b) u v)|] i1 i2 y = evalMore e
-  [qq| Refl [$j](Pair $h w1[i2=i2[],j]
-                         w2[i2=i2[],j]
-                      (Si (Arg $h a[i=i2[],j=j]) [$x]b[i=i2[],j=j,x])) |]
-  where
-  yk = [qq|[~j](IV u[i=i1[]] v[i=i1[]] y[] j)|] :: Wrap "j" Exp
-  y1 = [qq|Refl [$j](Proj $h Proj1 yk)|]
-  y2 = [qq|Refl [$j](Proj $h Proj2 yk)|]
-  z1 = [qq|[~i2]Cast [$i](Eq [$j]a[i,j]              u1[i] v1[i]) i1[] i2 y1[]|]
-  z2 = [qq|[~i2]Cast [$i](Eq [$j]b[i,j,x=w1[i2=i,j]] u2[i] v2[i]) i1[] i2 y2[]|]
-  w1 = [qq|[~i2][~j] (IV u1[i=i2] v1[i=i2] z1[i2=i2] j)|]
-  w2 = [qq|[~i2][~j] (IV u2[i=i2] v2[i=i2] z2[i2=i2] j)|]
-  u1 = [qq|[~i]Proj $h Proj1 u|] :: Wrap "i" Exp
-  u2 = [qq|[~i]Proj $h Proj2 u|]
-  v1 = [qq|[~i]Proj $h Proj1 v|]
-  v2 = [qq|[~i]Proj $h Proj2 v|]
---
---evalCast s [qq|[$i]a|] I2 j2 x = evalMore s [qq| Cast [$i]a[i=IFlip i] I1 (IFlip j2) x |]
---
-evalCast _ a j1 j2 x = Cast a j1 j2 x
--}
 
 -- reduction of "Cast (Bound i (ezType p a)) i1 i2 x"
 evalCast' :: EvalEnv -> Name -> Exp -> Exp -> CastEqValue -> CastEqValue
+--evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 && i2 `elem` [I1,I2] = x
 evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 = x
 evalCast' e i (Eq (Bound j a) u v) i2 x =
   evalCast' e i a i2 (cevPush j u v x)
-evalCast' _ _ a i2 x | not (cevIndexIsFree x) && not (isFree (cevDepth x) a) = x'
+evalCast' _ _ a i2 x | not (cevIndexIsFree x) && not (isFree (cevDepth x) a) = x' -- We don't actually need this.
   where
   x' = x { cevCurrentIdx = i2 }
 evalCast' e i (Si (Arg h a) b) i2 x = x12''
@@ -327,9 +245,11 @@ evalEverywhere e x = changeNew $ everywhere (tryEvalHere e) x
 tcEvalEnv :: EvalStrategy -> TcM EvalEnv
 tcEvalEnv s = do
   mv <- metaValues
+  vals <- freeValues
   return $ EvalEnv
     { evalStrategy = s
     , evalMetaValue = mv
+    , evalGlobal = vals
     }
 
 tcEval :: EvalStrategy -> Exp -> TcM Exp

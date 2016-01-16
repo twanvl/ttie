@@ -24,14 +24,15 @@ import qualified Data.Map as Map
 -- types for all free variables
 data TcCtx = TcCtx
   { ctxVarType  :: Seq (Named Exp) -- name and type of bound variables
-  , ctxFreeType :: Map Name Exp -- types of free values
+  --, ctxFreeType :: Map Name Exp -- types of free values
+  , ctxDecls    :: Map Name Decl
   --, ctxUsedNames  :: Set String    -- all names of bound variables
   }
 
 emptyCtx :: TcCtx
 emptyCtx = TcCtx
   { ctxVarType = Seq.empty
-  , ctxFreeType = Map.empty
+  , ctxDecls = Map.empty
   }
 
 pushCtx :: Named Exp -> TcCtx -> TcCtx
@@ -110,10 +111,14 @@ boundType i = do
 
 freeType :: Name -> TcM Exp
 freeType n = do
-  mty <- TcM $ asks $ Map.lookup n . ctxFreeType
+  mty <- TcM $ asks $ Map.lookup n . ctxDecls
   case mty of
     Nothing -> throwError =<< text "Free variable has no type:" <+> text n
-    Just ty -> return ty
+    Just ty -> return (declType ty)
+
+freeValues :: TcM (Name -> Maybe Exp)
+freeValues = do
+  TcM $ asks $ \st n -> declTryValue =<< Map.lookup n (ctxDecls st)
 
 --------------------------------------------------------------------------------
 -- Error utilities

@@ -31,18 +31,20 @@ import qualified Control.Exception as E
 -- Environment with some names
 --------------------------------------------------------------------------------
 
-testNames :: Map Name Exp
-testNames = Map.fromList
-  [("A", pe "Set")
-  ,("B", pe "Set")
-  ,("x", pe "A"),("y", pe "A"),("xy", pe "Eq A x y")
-  ,("f", pe "A -> B")
-  ,("B'", pe "A -> Set")
-  ,("f'", pe "(x:A) -> B' x")
-  ,("ab", pe "Eq Set A B")
-  ,("Nat", pe "Set")
-  ,("zero", pe "Nat")
-  ,("suc", pe "Nat -> Nat")
+testDecls :: Map Name Decl
+testDecls = Map.fromList
+  [("A",    Postulate $ pe "Set")
+  ,("B",    Postulate $ pe "Set")
+  ,("x",    Postulate $ pe "A")
+  ,("y",    Postulate $ pe "A")
+  ,("xy",   Postulate $ pe "Eq A x y")
+  ,("f",    Postulate $ pe "A -> B")
+  ,("B'",   Postulate $ pe "A -> Set")
+  ,("f'",   Postulate $ pe "(x:A) -> B' x")
+  ,("ab",   Postulate $ pe "Eq Set A B")
+  ,("Nat",  Postulate $ pe "Set")
+  ,("zero", Postulate $ pe "Nat")
+  ,("suc",  Postulate $ pe "Nat -> Nat")
   ]
   -- "Nat", pe "Set", pe "x:data{zero;suc} * case x of {zero -> data{unit}; suc -> Nat}"
   -- "Nat", pe "Set", pe "data{zero:Unit;suc:Nat}"
@@ -50,7 +52,7 @@ testNames = Map.fromList
 
 testCtx :: TcCtx
 testCtx = emptyCtx
-  { ctxFreeType = testNames
+  { ctxDecls = testDecls
   }
 
 --------------------------------------------------------------------------------
@@ -88,6 +90,7 @@ goodExpressions =
   ,"(\\x y -> tt) : (x y : Unit) -> Eq _ x y"
   -}
   ,"(\\xx' -> refl_i (f xx'^i)) : forall {x x'}. Eq A x x' -> Eq _ (f x) (f x')"
+  -- and
   -- casts
   ,"{-subst-} (\\P xy px -> fw_i (P xy^i) px)"
    ++": {A : Set} -> (P : A -> Set) -> {x y : A} -> Eq _ x y -> P x -> P y"
@@ -105,14 +108,25 @@ goodExpressions =
      \ fw_i (P xy^i (refl_j xy^(iand i j))) px : P y xy"
   --,"{-jay-and2-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
   --   \ fw_i (P xy^i (refl_j xy^((cast_j (Eq Interval i1 j) i1 j (refl i1))^i))) px : P y xy"
+  --,"{-jay-and2b-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
+  --   \ fw_i (P xy^i (refl_j xy^((cast_j (Eq Interval i1 j) i2 j (refl_j j))^i))) px : P y xy"
   --,"{-jay-and3-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
   --   \ fw_i (P xy^i (refl_j xy^((cast_j (Eq Interval i1 j) i1 i (refl i1))^j))) px : P y xy"
+  --,"{-jay-and3b-} \\{A : Set} {x} (P : (y : A) -> Eq A x y -> Set) {y} (xy : Eq A x y) px ->\
+  --   \ fw_i (P xy^i (refl_j xy^((cast_j (Eq Interval i1 j) i2 i (refl_i i))^j))) px : P y xy"
   -- equivalence to OTT style
   ,"{-ott-app-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> (\
      \(\\fg x12 -> refl_i (fg^i x12^i))\
      \: Eq_i ((x : A i) -> B i x) f g -> (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)))"
   ,"{-ott-lam-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> (\
      \(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i1 x} {cast_k (A k) i i2 x} (refl_j (cast_k (A k) i j x)))^i))\
+     \: (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
+  ,"{-ott-lam2-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i1) -> B i1 x} {g : (x : A i2) -> B i2 x} -> (\
+     \(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i1 x} {cast_k (A k) i i2 x}\
+     \    (cast_k (Eq_i (A (iand i k)) (cast_l (A l) i i1 x) \
+     \                                 (cast_l (A l) i k x)) \
+     \            i1 i2 (refl (cast_l (A l) i i1 x)) ) \
+     \)^i))\
      \: (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
   -- type checking of evaluation steps
   ,"forall (A : _ -> Set) j x. Eq _ (cast_i (A i) j j x) x"
@@ -423,7 +437,8 @@ findExp query = case filter (("{-"++query) `isPrefixOf`) goodExpressions of
   _   -> error $ "Multiple results for: " ++ query
 
 testExp' :: String -> IO ()
-testExp' x = 
+testExp' x = do
+  putStrLn $ take 40 x
   putStrLn $ either ("FAIL\n"++) ("OK\n"++) $ testExp x
 
 --------------------------------------------------------------------------------

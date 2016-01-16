@@ -6,7 +6,6 @@
 -- Differences:
 --   * @union@ and @flatten@ are exposed
 --   * added @groups@, for grouping on multiple lines
---   * 
 -----------------------------------------------------------
 module Util.WLPPrint (
    -- * Documents

@@ -21,7 +21,7 @@ module Util.MyPrelude
   , first, second, (***)
   , seq
   , Int
-  , Char, String, (++), null, length, (!!)
+  , Char, String, (++), (!!)
   , sort, sortBy
   , take, drop, takeWhile, dropWhile, reverse
   , zip, zipWith, zipWith3, zipWith4
