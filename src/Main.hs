@@ -111,8 +111,9 @@ runStmt (PrintEnv) = do
     lift . putStrLn . show $ runIdentity . runNamesT $ pprDecl n t
 runStmt (CheckEqual a b) = reportErrors $ do
   (a',b') <- runTcMIO $ do
-    (a',_) <- tc Nothing a
-    (b',_) <- tc Nothing b
+    (a',ta) <- tc Nothing a
+    (b',tb) <- tc Nothing b
+    unify ta tb
     return (a',b')
   _ <- runTcMIO $ unify a' b'
   return ()
