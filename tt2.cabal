@@ -1,6 +1,6 @@
 name: tt2
 version: 0.0.1
-cabal-version: >=1.2
+cabal-version: >=1.8
 build-type: Simple
 license: BSD3
 description: 
@@ -8,23 +8,51 @@ description:
 library
   ghc-options: -Wall
   build-depends:
-    base -any,
+    base >= 4.7,
     parsec >= 3,
     transformers,
     mtl >= 2.2,
-    containers >= 0.5,
-    void
+    template-haskell >= 2.8,
+    containers >= 0.5
   exposed-modules:
     Util.MyPrelude
     Util.Parser
-    Util.Pretty
+    Util.PrettyM
     Util.WLPPrint
+    Util.Tagged.Map
+    Util.Tagged.Seq
+    Util.Tagged.Var
     Names
     Substitution
     Tokenizer
     Syntax
     TcMonad
+    EqZipper
     Eval
     Typing
+  other-modules:
+    Util.Tagged.Internal
   hs-source-dirs: src
+
+executable tt2
+  main-is: src/Main.hs
+  build-depends:
+    optparse-applicative,
+    tt2,
+    base >= 4.7,
+    transformers,
+    mtl >= 2.2,
+    containers >= 0.5
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: src/Tests.hs
+  build-depends:
+    tasty,
+    tt2,
+    base >= 4.7,
+    parsec >= 3,
+    transformers,
+    mtl >= 2.2,
+    containers >= 0.5
 

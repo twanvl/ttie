@@ -18,11 +18,9 @@ import Substitution
 import Names
 import Tokenizer
 
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
-import Data.List (lookup,findIndex)
-import Data.Default.Class
+import Data.List (lookup)
 
 --------------------------------------------------------------------------------
 -- Expressions

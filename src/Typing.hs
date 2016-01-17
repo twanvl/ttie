@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns, PatternGuards #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
 module Typing where

@@ -13,8 +13,7 @@ import Tokenizer
 import Substitution
 
 import Data.Data (Data)
---import qualified Data.Map as Map
-import Data.List (lookup,findIndex)
+import Data.List (findIndex)
 
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Pos as P
@@ -23,7 +22,6 @@ import GHC.TypeLits
 
 import Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote as TH
-import Language.Haskell.TH.Syntax as TH
 
 --------------------------------------------------------------------------------
 -- Template haskell to improve safety

@@ -7,9 +7,7 @@ module Names where
 import Prelude ()
 import Util.MyPrelude
 import Util.PrettyM
-import Util.Parser
 
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 

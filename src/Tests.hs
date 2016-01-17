@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-module Tests where
+module Main where
 
 import Prelude ()
 import Util.MyPrelude
@@ -22,10 +22,9 @@ import Data.String
 import Data.List (isPrefixOf)
 
 import Test.Tasty
---import Test.Tasty.HUnit
 import Test.Tasty.Providers
---import Test.HUnit hiding (Test)
 import qualified Control.Exception as E
+import System.IO
 
 --------------------------------------------------------------------------------
 -- Environment with some names
@@ -457,5 +456,7 @@ tests = testGroup "Tests"
   ]
 
 main :: IO ()
-main = defaultMain tests
+main = do
+  hSetBuffering stdout LineBuffering
+  defaultMain tests
 

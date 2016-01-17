@@ -2,22 +2,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE QuasiQuotes, ViewPatterns #-}
+{-# LANGUAGE QuasiQuotes, ViewPatterns, PatternGuards #-}
 {-# LANGUAGE DataKinds #-}
 module Eval where
 
 import Prelude ()
-import Data.List (lookup)
 import Util.MyPrelude
-import Util.Pretty
 import Syntax
 import Substitution
 import SubstitutionQQ
 import Names
 import TcMonad
 import EqZipper
-
-import qualified Data.Map as Map
 
 --------------------------------------------------------------------------------
 -- Evaluation

@@ -15,6 +15,7 @@ import Eval
 import qualified Options.Applicative as O
 import qualified Data.Map as Map
 import Control.Monad.Trans
+import System.IO
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -143,6 +144,7 @@ parseFile file = do
 repl :: StateT Env IO ()
 repl = do
   lift $ putStr "> "
+  lift $ hFlush stdout
   line <- lift getLine
   replCommand line
 
@@ -175,9 +177,11 @@ main = O.execParser opts >>= mainWithOptions
        <> O.value Nothing)
 
 mainWithOptions :: Options -> IO ()
-mainWithOptions opts = flip evalStateT Map.empty $ do
-  maybe (return ()) parseFile $ optsFile opts
-  repl
+mainWithOptions opts = do
+  hSetBuffering stdout LineBuffering
+  flip evalStateT Map.empty $ do
+    maybe (return ()) parseFile $ optsFile opts
+    repl
 
 
 {-

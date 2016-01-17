@@ -9,7 +9,6 @@ import Util.PrettyM
 import Names
 import Syntax
 import Substitution
-import SubstitutionQQ
 
 --------------------------------------------------------------------------------
 -- Values of Eq types

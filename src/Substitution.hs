@@ -5,8 +5,6 @@ module Substitution where
 
 import Prelude ()
 import Util.MyPrelude
-import Util.Pretty
-import Util.Parser
 import Names
 
 import qualified Data.IntMap as IM
