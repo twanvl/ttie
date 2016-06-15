@@ -24,7 +24,7 @@ import System.IO
 data Statement
   = TypeSignature Name Exp
   | FunBody Name Exp
-  | PrintType Exp
+  | PrintType EvalStrategy Exp
   | PrintEval EvalStrategy Exp
   | PrintEnv
   | CheckEqual Exp Exp
@@ -35,7 +35,7 @@ data Statement
 instance (MonadBoundNames m, MonadBound Exp m) => Pretty m Statement where
   ppr _ (TypeSignature n x) = text n <+> text ":" <+> ppr 0 x
   ppr _ (FunBody n x) = text n <+> text "=" <+> ppr 0 x
-  ppr _ (PrintType x) = text ":type" <+> ppr 0 x
+  ppr _ (PrintType _ x) = text ":type" <+> ppr 0 x
   ppr _ (PrintEval _ x) = text ":eval" <+> ppr 0 x
   ppr _ (PrintEnv) = text ":env"
   ppr _ (CheckEqual x y) = text ":check" <+> ppr 0 x <+> text "=" <+> ppr 0 y
@@ -45,14 +45,15 @@ instance (MonadBoundNames m, MonadBound Exp m) => Pretty m Statement where
 
 parseStmt :: Parser Statement
 parseStmt
-    = PrintType      <$ (tokReservedName "type" <|> tokReservedName ":type" <|> tokReservedName ":t") <*> parseExp 0
-  <|> PrintEval WHNF <$ (tokReservedName "eval" <|> tokReservedName ":eval") <*> parseExp 0
-  <|> PrintEval NF   <$ tokReservedName ":nf"   <*> parseExp 0
-  <|> PrintEnv       <$ tokReservedName ":env"
-  <|> CheckEqual     <$ (tokReservedName "check" <|> tokReservedName ":check")  <*> parseExp 0 <* tokEquals <*> parseExp 0
-  <|> Import         <$ (tokReservedName "import" <|> tokReservedName ":l") <*> tokPath
-  <|> Help           <$ (tokReservedName ":help" <|> tokReservedName ":?")
-  <|> ClearEnv       <$ tokReservedName ":clear"
+    = PrintType NoEval <$ (tokReservedName "type" <|> tokReservedName ":type" <|> tokReservedName ":t") <*> parseExp 0
+  <|> PrintType NF     <$ (tokReservedName ":nftype" <|> tokReservedName ":tnf") <*> parseExp 0
+  <|> PrintEval WHNF   <$ (tokReservedName "eval" <|> tokReservedName ":eval") <*> parseExp 0
+  <|> PrintEval NF     <$ tokReservedName ":nf"   <*> parseExp 0
+  <|> PrintEnv         <$ tokReservedName ":env"
+  <|> CheckEqual       <$ (tokReservedName "check" <|> tokReservedName ":check")  <*> parseExp 0 <* tokEquals <*> parseExp 0
+  <|> Import           <$ (tokReservedName "import" <|> tokReservedName ":l") <*> tokPath
+  <|> Help             <$ (tokReservedName ":help" <|> tokReservedName ":?")
+  <|> ClearEnv         <$ tokReservedName ":clear"
   <|> do
         n <- tokName 
         id (TypeSignature n <$ tokColon <*> parseExp 0) <|>
@@ -99,8 +100,8 @@ runStmt (FunBody name exp) = reportErrors $ do
     Just _ -> throwError =<< text "Name already defined:" <+> text name
   (exp',ty') <- runTcMIO (tc ty exp)
   modify $ Map.insert name (FunDecl ty' exp')
-runStmt (PrintType exp) = reportErrors $ do
-  (_,ty') <- runTcMIO (tc Nothing exp)
+runStmt (PrintType s exp) = reportErrors $ do
+  ty' <- runTcMIO (tc Nothing exp >>= tcEval s . snd)
   liftIO $ putStrLn $ show ty'
 runStmt (PrintEval s exp) = reportErrors $ do
   exp' <- runTcMIO $ tcEval s . fst =<< tc Nothing exp

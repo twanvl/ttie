@@ -19,7 +19,7 @@ import EqZipper
 -- Evaluation
 --------------------------------------------------------------------------------
 
-data EvalStrategy = WHNF | NF | MetaOnly | OneStep
+data EvalStrategy = WHNF | NF | MetaOnly | OneStep | NoEval
   deriving (Eq)
 
 data EvalEnv = EvalEnv
@@ -30,6 +30,7 @@ data EvalEnv = EvalEnv
   }
 
 eval :: EvalEnv -> Exp -> Exp
+eval (evalStrategy->NoEval) x = x
 eval (evalStrategy->WHNF) x@(Pair _ _ _ _) = x
 eval (evalStrategy->WHNF) x@(Binder _ _ _) = x
 eval e (Meta x xs) = evalMeta e x xs
