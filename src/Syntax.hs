@@ -107,7 +107,8 @@ metaLevel mv = Level 0 $ TM.singleton mv 0
 
 pattern IntLevel i <- Level i (TM.null -> True)
 pattern ZeroLevel <- IntLevel 0
-pattern MetaLevel mv <- Level 0 (TM.toList -> [(mv,0)])
+pattern MetaLevel mv <- Level 0 (TM.toList -> [mv])
+pattern MetaLevels mvs <- Level 0 (TM.toList -> mvs)
 
 addLevel :: Int -> Level -> Level
 addLevel x (Level i j) = Level (x + i) (map (x +) j)

@@ -154,19 +154,24 @@ unifyMeta' _swapped mv args y = do
 -- | Rexpress x in terms of the local context
 --(Int -> Maybe ) -> Exp -> TcM Exp
 
-unifyLevelMeta :: Swapped -> LevelMetaVar -> Level -> TcM Level
-unifyLevelMeta _swapped mv l = do
-  lMv <- getLevelMetaVar mv
-  if isJust lMv
-    then error "unifyLevelMeta: meta var already has a value"
-    else putLevelMetaVar mv (Just l)
-  return l
+unifyLevelMeta :: Swapped -> (LevelMetaVar,Int) -> Level -> TcM Level
+unifyLevelMeta _swapped (mv,x) lPLusX =
+  case subtractLevel x lPLusX of
+    Just l -> do
+      lMv <- getLevelMetaVar mv
+      if isJust lMv
+        then error "unifyLevelMeta: meta var already has a value"
+        else putLevelMetaVar mv (Just l)
+      return l
+    Nothing -> tcError =<< group (text "Failed to unify level meta")
 
 unifyLevels, unifyLevels' :: Level -> Level -> TcM Level
 unifyLevels x y = join $ unifyLevels' <$> evalLevel x <*> evalLevel y
 unifyLevels' x y | x == y = pure x
 unifyLevels' (MetaLevel x) y = unifyLevelMeta id   x y
 unifyLevels' x (MetaLevel y) = unifyLevelMeta flip y x
+unifyLevels' (MetaLevels xs) y@(IntLevel 0) = mapM_ (flip (unifyLevelMeta id  ) y) xs >> return y
+unifyLevels' x@(IntLevel 0) (MetaLevels ys) = mapM_ (flip (unifyLevelMeta flip) x) ys >> return x
 unifyLevels' x y = do
   tcError =<< group (text "Failed to unify" <+> tcPpr 11 (Set x) $/$ text "with" <+> tcPpr 11 (Set y))
 

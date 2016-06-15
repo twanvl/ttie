@@ -81,6 +81,9 @@ goodExpressions =
   ,"(\\x -> case x of {}) : data{} -> {A : Set} -> A"
   ,"(\\ft -> fw_i (case ft^i of {false _ -> Unit; true _ -> data{}}) tt)"
    ++": Eq data{false:Unit;true:Unit} (value false tt) (value true tt) -> data{}" -- false /= true
+   -- type inference
+  ,"((\\{A:Type} (x : A) -> x) (tt,tt)) : Unit * Unit"
+  ,"((\\{A:Type} x -> value wrap x : data{wrap:A}) (tt,tt)) : data {wrap : Unit * Unit}"
   -- OTT
   {-
   ,"proj1 (refl (x,y))"
