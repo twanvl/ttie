@@ -84,6 +84,7 @@ goodExpressions =
    -- type inference
   ,"((\\{A:Type} (x : A) -> x) (tt,tt)) : Unit * Unit"
   ,"((\\{A:Type} x -> value wrap x : data{wrap:A}) (tt,tt)) : data {wrap : Unit * Unit}"
+  ,"Unit : _ : _ : _ : _ : _ : _"
   -- OTT
   {-
   ,"proj1 (refl (x,y))"
@@ -123,13 +124,13 @@ goodExpressions =
   ,"{-ott-lam-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i0) -> B i0 x} {g : (x : A i1) -> B i1 x} -> (\
      \(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i0 x} {cast_k (A k) i i1 x} (refl_j (cast_k (A k) i j x)))^i))\
      \: (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
-  ,"{-ott-lam2-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i0) -> B i0 x} {g : (x : A i1) -> B i1 x} -> (\
+  {-,"{-ott-lam2-} \\{A : Interval -> Set} {B : forall i. A i -> Set} {f : (x : A i0) -> B i0 x} {g : (x : A i1) -> B i1 x} -> (\
      \(\\fg -> refl_i (\\x -> (fg {cast_k (A k) i i0 x} {cast_k (A k) i i1 x}\
      \    (cast_k (Eq_i (A (iand i k)) (cast_l (A l) i i0 x) \
      \                                 (cast_l (A l) i k x)) \
      \            i0 i1 (refl (cast_l (A l) i i0 x)) ) \
      \)^i))\
-     \: (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"
+     \: (forall {x1 x2} (x12 : Eq_i (A i) x1 x2) -> Eq_i (B i x12^i) (f x1) (g x2)) -> Eq_i ((x : A i) -> B i x) f g)"-}
   -- type checking of evaluation steps
   ,"forall (A : _ -> Set) j x. Eq _ (cast_i (A i) j j x) x"
   ,"{-ty-cast-pair-} \\(A : _ -> Set) (B : ∀ {x}. A x -> Set) j1 j2 xy. \
@@ -313,6 +314,7 @@ badExpressions =
   ,"(refl f) x"
   ,"f (refl x)"
   ,"data{zero:Unit; zero:Nat}"
+  ,"_"
   ]
 
 --------------------------------------------------------------------------------
