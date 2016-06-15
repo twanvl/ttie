@@ -255,7 +255,7 @@ goodExpressions =
      \                                             (cast_i (A i i1) j2 i (cast_k (A j2 k) j0 i1 x))) j2 j1 \
      \                               (refl_j (cast_k (A j2 k) j0 j x)) )^j0)"
      -}
-  ,"{-ar-eq2-}\\(A : _ -> _ -> Set) (B : _ -> _ -> Set) u v j1 j2 (f : Eq_j (A j1 j->B j1 j) (u j1) (v j1)). \
+  ,"{-ar-eq2-}\\(A : _ -> _ -> Set) (B : _ -> _ -> Set) u v j1 j2 (f : Eq_j (A j1 j -> B j1 j) (u j1) (v j1)). \
      \ refl_j (\\(x : A j2 j) -> \
      \    (cast_i (Eq_j' (B i j') (u i (cast_i (A i i0) j2 i (cast_j (A j2 j) j i0 x))) \
      \                            (v i (cast_i (A i i1) j2 i (cast_j (A j2 j) j i1 x))) ) j1 j2\

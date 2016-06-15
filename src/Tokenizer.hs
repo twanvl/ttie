@@ -55,7 +55,7 @@ isNameStart, isNameCont :: Char -> Bool
 --isNameStart x = isAlpha x || (isSymbol x) || x `elem` "_'*"
 --isNameCont x = isAlphaNum x || (isSymbol x) || x `elem` "_'*"
 isNameStart x = isAlpha x || (isSymbol x && x `notElem` "<=>^`$") || x `elem` "_'*"
-isNameCont x = isAlphaNum x || (isSymbol x && x `notElem` "<=>^`") || x `elem` "_'*"
+isNameCont x = isAlphaNum x || (isSymbol x && x `notElem` "<=>^`") || x `elem` "_'*-"
 
 -- a non-reserved name
 tokName :: Parser String
