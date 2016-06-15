@@ -77,23 +77,23 @@ evalCase e (SumVal n x _) ys _
 evalCase _ x ys a = SumElim x ys a
 
 evalIFlip :: EvalEnv -> Exp -> Exp
-evalIFlip _ I1 = I2
-evalIFlip _ I2 = I1
+evalIFlip _ I0 = I1
+evalIFlip _ I1 = I0
 evalIFlip _ (IFlip x) = x
 evalIFlip _ x  = IFlip x
 
 evalIAnd :: EvalEnv -> Exp -> Exp -> Exp
-evalIAnd _ I1 _ = I1
-evalIAnd _ I2 y = y
-evalIAnd _ _ I1 = I1
-evalIAnd _ x I2 = x
+evalIAnd _ I0 _ = I0
+evalIAnd _ I1 y = y
+evalIAnd _ _ I0 = I0
+evalIAnd _ x I1 = x
 -- commutativity and idempotence?
 evalIAnd _ x y = IAnd x y
 
 evalIV :: EvalEnv -> Exp -> Exp -> Exp -> Exp -> Exp
-evalIV _ x _ _ I1 = x
-evalIV _ _ y _ I2 = y
-evalIV _ _ _ I12 w = w
+evalIV _ x _ _ I0 = x
+evalIV _ _ y _ I1 = y
+evalIV _ _ _ I01 w = w
 evalIV e _ _ (Refl z) w = evalMore e $ substBound z w
 evalIV _ x y z w  = IV x y z w
 
@@ -113,7 +113,7 @@ evalCast e (Bound i a) i1 i2 x =
 
 -- reduction of "Cast (Bound i (ezType p a)) i1 i2 x"
 evalCast' :: EvalEnv -> Name -> Exp -> Exp -> CastEqValue -> CastEqValue
---evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 && i2 `elem` [I1,I2] = x
+--evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 && i2 `elem` [I0,I1] = x
 evalCast' _ _ _ i2 x | cevCurrentIdx x == i2 = x
 evalCast' e i (Eq (Bound j a) u v) i2 x =
   evalCast' e i a i2 (cevPush j u v x)
@@ -196,8 +196,8 @@ isWHNF (App (Lam _ _) _) = False
 isWHNF (App x _) = isWHNF x
 isWHNF (Proj _ _ (Pair _ _ _ _)) = False
 isWHNF (Proj _ _ x) = isWHNF x
+isWHNF (IV _ _ _ I0) = False
 isWHNF (IV _ _ _ I1) = False
-isWHNF (IV _ _ _ I2) = False
 isWHNF (IV _ _ _ i) = isWHNF i
 isWHNF _ = True
 

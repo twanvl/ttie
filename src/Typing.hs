@@ -223,10 +223,10 @@ unify' (Refl x) (Refl x') = Refl <$> unifyBound Interval x x'
 unify' (IV x y z w) (IV x' y' z' w') = IV <$> unify x x' <*> unify y y' <*> unify z z' <*> unify w w'
 unify' (Cast x y z w) (Cast x' y' z' w') = Cast <$> unifyBound Interval x x' <*> unify y y' <*> unify z z' <*> unify w w'
 unify' x@Interval Interval = pure x
+unify' x@I0 I0 = pure x
 unify' x@I1 I1 = pure x
-unify' x@I2 I2 = pure x
-unify' x@I12 I12 = pure x
-unify' x@I21 I21 = pure x
+unify' x@I01 I01 = pure x
+unify' x@I10 I10 = pure x
 unify' x@UnitTy UnitTy = pure x
 unify' x@UnitVal UnitVal = pure x
 -- metas
@@ -251,15 +251,15 @@ unify' (Refl x) x' = do
   {-
   -- this is the correct typing, but since we don't do higher order unification yet, the type of v1:ty[i1] will cause ty to contain i1, instead of using a variable that is equal to v1.
   ty <- Bound "" <$> localBound (unnamed Interval) freshMetaSet
-  v1 <- freshMeta (substBound ty I1)
-  v2 <- freshMeta (substBound ty I2)-}
+  v1 <- freshMeta (substBound ty I0)
+  v2 <- freshMeta (substBound ty I1)-}
   v1 <- freshMetaAny
   v2 <- freshMetaAny
   Refl <$> unifyBound Interval x (Bound "" (IV (raiseBy 1 v1) (raiseBy 1 v2) (raiseBy 1 x') (Var 0)))
 unify' x (Refl x') = do
   {-ty <- Bound "" <$> localBound (unnamed Interval) freshMetaSet
-  v1 <- freshMeta (substBound ty I1)
-  v2 <- freshMeta (substBound ty I2)-}
+  v1 <- freshMeta (substBound ty I0)
+  v2 <- freshMeta (substBound ty I1)-}
   v1 <- freshMetaAny
   v2 <- freshMetaAny
   Refl <$> unifyBound Interval (Bound "" (IV (raiseBy 1 v1) (raiseBy 1 v2) (raiseBy 1 x) (Var 0))) x'
@@ -309,8 +309,8 @@ unifyEq :: Exp -> TcM (Bound Exp, Exp, Exp)
 unifyEq (Eq x y z) = return (x,y,z)
 unifyEq xy = do
   x <- Bound "" <$> localBound (unnamed Interval) freshMetaSet
-  y <- freshMeta (substBound x I1)
-  z <- freshMeta (substBound x I2)
+  y <- freshMeta (substBound x I0)
+  z <- freshMeta (substBound x I1)
   Eq x' y' z' <- unify xy (Eq x y z)
   return (x',y',z')
   
@@ -440,14 +440,14 @@ tc mty (Pair h x y z) = do
 tc Nothing (Eq x y z) = do
   (x',l) <- tcBoundType Interval x
     `annError` text "in the 'type' argument of" $/$ tcPpr 0 (Eq x y z)
-  (y',_) <- tc (Just $ substBound x' I1) y
+  (y',_) <- tc (Just $ substBound x' I0) y
+    `annError` text "in the 'i0 end' argument of" $/$ tcPpr 0 (Eq x y z)
+  (z',_) <- tc (Just $ substBound x' I1) z
     `annError` text "in the 'i1 end' argument of" $/$ tcPpr 0 (Eq x y z)
-  (z',_) <- tc (Just $ substBound x' I2) z
-    `annError` text "in the 'i2 end' argument of" $/$ tcPpr 0 (Eq x y z)
   return (Eq x' y' z', Set l)
 tc Nothing (Refl (Bound n x)) = do
   (x',t) <- localBound (named n Interval) $ tc Nothing x
-  return (Refl (Bound n x'), Eq (Bound n t) (subst1 I1 x') (subst1 I2 x'))
+  return (Refl (Bound n x'), Eq (Bound n t) (subst1 I0 x') (subst1 I1 x'))
 tc Nothing UnitTy = return (UnitTy, Set zeroLevel)
 tc Nothing UnitVal = return (UnitVal, UnitTy)
 tc Nothing (SumTy xs) = do
@@ -513,10 +513,10 @@ tc Nothing (SumElim x ys ty) = do
     ds -> tcError =<< text "Duplicate case names: " <+> hsep (map text ds)
   return (SumElim x' ys'' ty', substBound ty2 x')
 tc Nothing Interval = return (Interval, Set zeroLevel)
+tc Nothing I0  = return (I0, Interval)
 tc Nothing I1  = return (I1, Interval)
-tc Nothing I2  = return (I2, Interval)
-tc Nothing I12 = return (I12, Eq (notBound Interval) I1 I2)
-tc Nothing I21 = return (I21, Eq (notBound Interval) I2 I1)
+tc Nothing I01 = return (I01, Eq (notBound Interval) I0 I1)
+tc Nothing I10 = return (I10, Eq (notBound Interval) I1 I0)
 tc Nothing (IFlip x) = do
   (x',_) <- tc (Just Interval) x
   return (IFlip x',Interval)
@@ -528,8 +528,8 @@ tc Nothing (IV x y z w) = do
   (w',_) <- tc (Just Interval) w
   (z',t) <- tc Nothing z
   (ta,t1,t2) <- unifyEq t
-  (x',_) <- tc (Just $ substBound ta I1) x
-  (y',_) <- tc (Just $ substBound ta I2) y
+  (x',_) <- tc (Just $ substBound ta I0) x
+  (y',_) <- tc (Just $ substBound ta I1) y
   _ <- unify x' t1
   _ <- unify y' t2
   return (IV x' y' z' w', substBound ta w')

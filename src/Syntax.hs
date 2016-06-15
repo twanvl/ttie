@@ -50,7 +50,7 @@ data Exp
   | Cast (Bound Exp) Exp Exp Exp
   | Equiv Exp Exp Exp Exp Exp
   -- interval
-  | Interval | I1 | I2 | I12 | I21 | IFlip Exp | IAnd Exp Exp
+  | Interval | I0 | I1 | I01 | I10 | IFlip Exp | IAnd Exp Exp
   | IV Exp Exp Exp Exp
   -- typing
   | TypeSig Exp Exp
@@ -175,10 +175,10 @@ instance TraverseChildren Exp Exp where
   traverseChildren f (Eq x y z) = Eq <$> traverseBound Interval f x <*> f y <*> f z
   traverseChildren f (Refl x) = Refl <$> traverseBound Interval f x
   traverseChildren _ Interval = pure Interval
+  traverseChildren _ I0 = pure I0
   traverseChildren _ I1 = pure I1
-  traverseChildren _ I2 = pure I2
-  traverseChildren _ I12 = pure I12
-  traverseChildren _ I21 = pure I21
+  traverseChildren _ I01 = pure I01
+  traverseChildren _ I10 = pure I10
   traverseChildren f (IFlip x) = IFlip <$> f x
   traverseChildren f (IAnd x y) = IAnd <$> f x <*> f y
   traverseChildren f (IV x y z w) = IV <$> f x <*> f y <*> f z <*> f w
@@ -323,10 +323,10 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
     Bound "" x' -> align $ text "refl"             $/$ localBound (unnamed Interval) (ppr 11 x')
     Bound n x'  -> align $ text "refl_" <.> text n $/$ localBound (named n Interval) (ppr 11 x')
   ppr _ Interval = text "Interval"
+  ppr _ I0 = text "i0"
   ppr _ I1 = text "i1"
-  ppr _ I2 = text "i2"
-  ppr _ I12 = text "i12"
-  ppr _ I21 = text "i21"
+  ppr _ I01 = text "i01"
+  ppr _ I10 = text "i10"
   ppr p (IFlip x) = group $ parenIf (p > 10) $ text "iflip" <+> ppr 11 x
   ppr p (IAnd x y) = group $ parenIf (p > 10) $ text "iand" <+> ppr 11 x <+> ppr 11 y
   --ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
@@ -412,18 +412,18 @@ parseExpPrim p
   <|> SumElim <$ tokReservedName "case" <*> parseExp 0 <* tokReservedName "of" <* tokLBrace <*> parseSumCase `sepBy` tokSemi <* tokRBrace <*> pure Blank
   <|> SumVal <$ tokReservedName "value" <*> tokName <*> parseExp 11 <*> pure Blank
   <|> Interval <$ tokReservedName "Interval"
+  <|> I0 <$ tokReservedName "i0"
   <|> I1 <$ tokReservedName "i1"
-  <|> I2 <$ tokReservedName "i2"
-  <|> I12 <$ tokReservedName "i12"
-  <|> I21 <$ tokReservedName "i21"
+  <|> I01 <$ tokReservedName "i01"
+  <|> I10 <$ tokReservedName "i10"
   <|> IFlip <$ guard (p <= 10) <* tokReservedName "iflip" <*> parseExp 11
   <|> IAnd <$ guard (p <= 10) <* tokReservedName "iand" <*> parseExp 11 <*> parseExp 11
   <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Refl (capture n x)) <$ guard (p <= 10) <*> tokRefl <*> parseExp 11
   <|> (\n x -> Eq   (capture n x)) <$ guard (p <= 10) <*> tokEq   <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Cast (capture n x)) <$ guard (p <= 10) <*> tokCast <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
-  <|> (\n x -> Cast (capture n x) I1 I2) <$ guard (p <= 10) <*> tokFw <*> parseExp 11 <*> parseExp 11
-  <|> (\n x -> Cast (capture n x) I2 I1) <$ guard (p <= 10) <*> tokBw <*> parseExp 11 <*> parseExp 11
+  <|> (\n x -> Cast (capture n x) I0 I1) <$ guard (p <= 10) <*> tokFw <*> parseExp 11 <*> parseExp 11
+  <|> (\n x -> Cast (capture n x) I1 I0) <$ guard (p <= 10) <*> tokBw <*> parseExp 11 <*> parseExp 11
   <|> Free <$> parseNonOpName
   <|> Meta . TV.TV <$> tokMeta <*> parseMetaArgs
   <?> "expression"

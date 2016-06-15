@@ -128,7 +128,7 @@ ezWrapNames js x0 = foldl step x0 js
 ezWrapNamesPath :: [Name] -> Exp -> EqPath
 ezWrapNamesPath js0 x = zipWith3 step js0 (inits js0) [0..]
   where
-  step j js i = EqStep j (ezWrapNames js (substAt i I1 x)) (ezWrapNames js (substAt i I2 x))
+  step j js i = EqStep j (ezWrapNames js (substAt i I0 x)) (ezWrapNames js (substAt i I1 x))
 
 -- map inside refls
 --  ∀ Δ. Δ |- x : a  ==>  Δ |- f x : b
@@ -141,7 +141,7 @@ ezMapExp f ws x = ezWrap ws (f (ezUnwrap 0 ws x))
 ezMapPath :: (Exp -> Exp) -> EqPath -> EqPath
 ezMapPath f ws = zipWith step ws (inits ws)
   where
-  step (EqStep j u v) inner = EqStep j (ezMapExp f (ezSubstPath I1 inner) u) (ezMapExp f (ezSubstPath I2 inner) v)
+  step (EqStep j u v) inner = EqStep j (ezMapExp f (ezSubstPath I0 inner) u) (ezMapExp f (ezSubstPath I1 inner) v)
 
 ezZipExp :: (Exp -> Exp -> Exp) -> EqPath -> Exp -> EqPath -> Exp -> Exp
 ezZipExp f ws x ws' x' = ezWrap ws (f (ezUnwrap 0 ws x) (ezUnwrap 0 ws' x'))
@@ -150,8 +150,8 @@ ezZipPath :: (Exp -> Exp -> Exp) -> EqPath -> EqPath -> EqPath
 ezZipPath f ws ws' = zipWith4 step ws (inits ws) ws' (inits ws')
   where
   step (EqStep j u v) inner (EqStep _j' u' v') inner' =
-    EqStep j (ezZipExp f (ezSubstPath I1 inner) u (ezSubstPath I1 inner') u')
-             (ezZipExp f (ezSubstPath I2 inner) v (ezSubstPath I2 inner') v')
+    EqStep j (ezZipExp f (ezSubstPath I0 inner) u (ezSubstPath I0 inner') u')
+             (ezZipExp f (ezSubstPath I1 inner) v (ezSubstPath I1 inner') v')
 
 --------------------------------------------------------------------------------
 -- Values, used for casting
@@ -170,7 +170,7 @@ ezZipPath f ws ws' = zipWith4 step ws (inits ws) ws' (inits ws')
 data CastEqValue = CastEqValue
   { cevPath       :: EqPath
   , cevValue      :: Exp
-  , cevCurrentIdx :: Exp -- ^ current 'side' of the variable that we are casting along (e.g. I1 when casting forward)
+  , cevCurrentIdx :: Exp -- ^ current 'side' of the variable that we are casting along (e.g. I0 when casting forward)
   }
   deriving (Show)
 
