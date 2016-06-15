@@ -51,7 +51,7 @@ parseStmt
   <|> PrintEnv       <$ tokReservedName ":env"
   <|> CheckEqual     <$ (tokReservedName "check" <|> tokReservedName ":check")  <*> parseExp 0 <* tokEquals <*> parseExp 0
   <|> Import         <$ (tokReservedName "import" <|> tokReservedName ":l") <*> tokName
-  <|> Help           <$ tokReservedName ":help"
+  <|> Help           <$ (tokReservedName ":help" <|> tokReservedName ":?")
   <|> ClearEnv       <$ tokReservedName ":clear"
   <|> do
         n <- tokName 
@@ -113,7 +113,7 @@ runStmt (CheckEqual a b) = reportErrors $ do
   (a',b') <- runTcMIO $ do
     (a',ta) <- tc Nothing a
     (b',tb) <- tc Nothing b
-    unify ta tb
+    _ <- unify ta tb
     return (a',b')
   _ <- runTcMIO $ unify a' b'
   return ()
@@ -180,6 +180,7 @@ main = O.execParser opts >>= mainWithOptions
 mainWithOptions :: Options -> IO ()
 mainWithOptions opts = do
   hSetBuffering stdout LineBuffering
+  hSetBuffering stdin LineBuffering
   flip evalStateT Map.empty $ do
     maybe (return ()) parseFile $ optsFile opts
     repl
