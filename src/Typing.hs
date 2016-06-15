@@ -315,9 +315,10 @@ unifyEq xy = do
   return (x',y',z')
   
 -- | Unify x with (SumTy _)
-unifySumTy :: Exp -> TcM [SumCtor]
-unifySumTy (SumTy xs) = return xs
-unifySumTy ty = tcError =<< text "Expected a sum type instead of" $/$ tcPpr 0 ty
+unifySumTy, unifySumTy' :: Exp -> TcM [SumCtor]
+unifySumTy = unifySumTy' <=< tcEval WHNF
+unifySumTy' (SumTy xs) = return xs
+unifySumTy' ty = tcError =<< text "Expected a sum type instead of" $/$ tcPpr 0 ty
 
 
 
