@@ -50,7 +50,7 @@ parseStmt
   <|> PrintEval NF   <$ tokReservedName ":nf"   <*> parseExp 0
   <|> PrintEnv       <$ tokReservedName ":env"
   <|> CheckEqual     <$ (tokReservedName "check" <|> tokReservedName ":check")  <*> parseExp 0 <* tokEquals <*> parseExp 0
-  <|> Import         <$ (tokReservedName "import" <|> tokReservedName ":l") <*> tokName
+  <|> Import         <$ (tokReservedName "import" <|> tokReservedName ":l") <*> tokPath
   <|> Help           <$ (tokReservedName ":help" <|> tokReservedName ":?")
   <|> ClearEnv       <$ tokReservedName ":clear"
   <|> do
@@ -117,7 +117,11 @@ runStmt (CheckEqual a b) = reportErrors $ do
     return (a',b')
   _ <- runTcMIO $ unify a' b'
   return ()
-runStmt (Import file) = parseFile (file ++ ".tt2")
+runStmt (Import file) = parseFile fileName
+  where
+  fileName
+    | any (`elem` "./") file = file
+    | otherwise = file ++ ".tt2"
 runStmt (Help) = do
   lift $ putStrLn "x = e          Add a definition"
   lift $ putStrLn "x : e          Add a postulate"

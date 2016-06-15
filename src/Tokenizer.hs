@@ -68,6 +68,15 @@ tokName = P.try (do
   return n
  <?> "name")
 
+-- a path
+tokPath :: Parser String
+tokPath = P.try (do
+  indented
+  n <- tokString <|> P.many1 (P.satisfy (`notElem` " \t\n\r\""))
+  tokWS
+  return n
+ <?> "path")
+
 tokLowerName :: Parser String
 tokLowerName = tokLowerNameNoWS <* tokWS <?> "name"
 
@@ -185,4 +194,13 @@ tokVar = indented *> P.try (P.string "#" *> tokIntPart <* tokIntEnd) <* tokWS
 tokMeta :: Parser Int
 tokMeta = indented *> P.try (P.string "?" *> tokIntPart <* tokIntEnd) <* tokWS
   <?> "meta variable"
+
+tokString :: Parser String
+tokString = indented *> P.try (P.char '"' *> P.many stringPart <* P.char '"') <* tokWS
+  where
+  stringPart = P.satisfy (`notElem` "\"\\\n")
+           <|> '\\' <$ P.string "\\\\"
+           <|> '\"' <$ P.string "\\\""
+           <|> '\n' <$ P.string "\\n"
+           <|> '\r' <$ P.string "\\r"
 
