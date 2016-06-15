@@ -291,9 +291,9 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
       Just n  -> text n <.> text "#" <.> ppr 0 i
       Nothing -> text "#" <.> ppr 0 i
   ppr p (Free c) = ppr p c
-  ppr _ (Set ZeroLevel) = text "Set"
-  ppr _ (Set (IntLevel i)) = text "Set" <.> int i
-  ppr _ (Set l) = text "Set" <.> ppr 11 l
+  ppr _ (Set ZeroLevel) = text "Type"
+  ppr _ (Set (IntLevel i)) = text "Type" <.> int i
+  ppr _ (Set l) = text "Type" <.> ppr 11 l
   ppr p (App a b) = group $ parenAlignIf (p > 10) $ ppr 10 a $/$ ppr 11 b
   {-ppr p (Binder x a b) = do
     where (a',b') = namedBound a (renameForPrinting b)
