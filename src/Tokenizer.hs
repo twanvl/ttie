@@ -117,7 +117,7 @@ tokReservedName n = indented *> P.try (P.string n *> tokNameEnd) *> tokWS
 tokReservedOp :: String -> Parser ()
 tokReservedOp n = indented *> P.try (P.string n) *> tokWS
 
-tokLParen, tokRParen, tokLBracket, tokRBracket, tokLBrace, tokRBrace, tokColon, tokSemi, tokComma, tokEquals, tokArrow, tokThickArrow, tokProduct, tokHat, tokForall, tokExists, tokPi, tokSigma, tokLambda, tokBlank, tokCase, tokOf, tokEval, tokPostulate, tokDollar, tokDot, tokUnderscore, tokBacktick :: Parser ()
+tokLParen, tokRParen, tokLBracket, tokRBracket, tokLBrace, tokRBrace, tokColon, tokSemi, tokComma, tokEquals, tokDEquals, tokArrow, tokThickArrow, tokProduct, tokHat, tokForall, tokExists, tokPi, tokSigma, tokLambda, tokBlank, tokCase, tokOf, tokEval, tokPostulate, tokDollar, tokDot, tokUnderscore, tokBacktick :: Parser ()
 tokLParen = tokReservedOp "("
 tokRParen = tokReservedOp ")"
 tokLBracket = tokReservedOp "["
@@ -129,6 +129,7 @@ tokSemi = tokReservedOp ";"
 tokComma = tokReservedOp ","
 tokLambda = tokReservedOp "\\"
 tokEquals = tokReservedOp "="
+tokDEquals = tokReservedOp "=="
 tokArrow = tokReservedOp "->" <|> tokReservedOp "→"
 tokThickArrow = tokReservedOp "=>" <|> tokReservedOp "⇒"
 tokProduct = tokReservedOp "*" <|> tokReservedOp "×"

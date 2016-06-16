@@ -494,6 +494,10 @@ parseOp pcur pmin = (try $ do
   tokHat
   return ((\x y -> pure (IV Blank Blank x y)), 11, 12)
  <|> do
+  guard $ pcur >= 5 && pmin <= 4
+  tokDEquals
+  return ((\x y -> pure (Eq (Bound "" Blank) x y)), 5, 4)
+ <|> do
   guard $ pcur >= 10 && pmin <= 10
   return ((\x y -> pure (AppV x y)), 10, 11)
 
