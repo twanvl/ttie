@@ -1,5 +1,5 @@
-name: tt2
-version: 0.0.1
+name: ttie
+version: 0.1.0
 cabal-version: >=1.8
 build-type: Simple
 license: BSD3
@@ -34,11 +34,11 @@ library
     Util.Tagged.Internal
   hs-source-dirs: src
 
-executable tt2
+executable ttie
   main-is: src/Main.hs
   build-depends:
+    ttie,
     optparse-applicative,
-    tt2,
     base >= 4.7,
     transformers,
     mtl >= 2.2,
@@ -48,8 +48,8 @@ test-suite tests
   type: exitcode-stdio-1.0
   main-is: src/Tests.hs
   build-depends:
+    ttie,
     tasty,
-    tt2,
     base >= 4.7,
     parsec >= 3,
     transformers,

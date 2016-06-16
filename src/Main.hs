@@ -122,7 +122,7 @@ runStmt (Import file) = parseFile fileName
   where
   fileName
     | any (`elem` "./") file = file
-    | otherwise = file ++ ".tt2"
+    | otherwise = file ++ ".ttie"
 runStmt (Help) = do
   lift $ putStrLn "x = e          Add a definition"
   lift $ putStrLn "x : e          Add a postulate"
