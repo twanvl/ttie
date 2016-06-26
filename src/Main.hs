@@ -1,9 +1,10 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, UndecidableInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell, RankNTypes #-}
 module Main where
 
 import Prelude ()
 import Util.MyPrelude
-import Util.PrettyM
+import Util.PrettyM hiding ((<.>))
 import Util.Parser
 import Names
 import Tokenizer
@@ -16,6 +17,9 @@ import qualified Options.Applicative as O
 import qualified Data.Map as Map
 import Control.Monad.Trans
 import System.IO
+import System.Directory
+import System.FilePath
+import Lens.Simple
 
 --------------------------------------------------------------------------------
 -- Statements
@@ -65,10 +69,35 @@ parseStmts = withIndentation (many $ parseStmt0) <* tokWS <* eof
   parseStmt0 = try (tokWS >> notIndented) >> withIndentation parseStmt
 
 --------------------------------------------------------------------------------
--- Running statements
+-- State/environment of the interpreter
 --------------------------------------------------------------------------------
 
-type Env = Map Name Decl
+data Env = Env
+  { _envNames :: Map Name Decl
+  , _envWorkingDir :: Maybe FilePath
+  }
+$(makeLenses ''Env)
+
+emptyEnv :: Env
+emptyEnv = Env
+  { _envNames = Map.empty
+  , _envWorkingDir = Nothing
+  }
+
+withWorkingDir :: FilePath -> StateT Env IO () -> StateT Env IO ()
+withWorkingDir = withFieldValue envWorkingDir . Just
+
+withFieldValue :: Monad m => Lens' s a -> a -> StateT s m b -> StateT s m b
+withFieldValue field newValue action = do
+  oldValue <- use field
+  assign field newValue
+  out <- action
+  assign field oldValue
+  return out
+
+--------------------------------------------------------------------------------
+-- Running statements
+--------------------------------------------------------------------------------
 
 reportErrors :: MonadIO m => ExceptT Doc m () -> m ()
 reportErrors mx = do
@@ -79,8 +108,8 @@ reportErrors mx = do
 
 runTcMIO :: EvalAllMetas a => TcM a -> ExceptT Doc (StateT Env IO) a
 runTcMIO mx = do
-  env <- get
-  let ctx = emptyCtx { ctxDecls = env }
+  names <- use envNames
+  let ctx = emptyCtx { ctxDecls = names }
   case runTcM ctx (mx >>= evalAllMetasThrow) of
     Left e -> throwError e
     Right x -> return x
@@ -88,18 +117,18 @@ runTcMIO mx = do
 runStmt :: Statement -> StateT Env IO ()
 runStmt (TypeSignature name typ) = reportErrors $ do
   (typ',_) <- runTcMIO (tcType typ)
-  env <- get
-  case Map.lookup name env of
-    Nothing -> modify $ Map.insert name (Postulate typ')
+  names <- use envNames
+  case Map.lookup name names of
+    Nothing -> envNames %= Map.insert name (Postulate typ')
     Just _  -> throwError =<< text "Name already defined:" <+> text name
 runStmt (FunBody name exp) = reportErrors $ do
-  env <- get
-  ty <- case Map.lookup name env of
+  names <- use envNames
+  ty <- case Map.lookup name names of
     Nothing -> return Nothing
     Just (Postulate ty) -> return $ Just ty
     Just _ -> throwError =<< text "Name already defined:" <+> text name
   (exp',ty') <- runTcMIO (tc ty exp)
-  modify $ Map.insert name (FunDecl ty' exp')
+  envNames %= Map.insert name (FunDecl ty' exp')
 runStmt (PrintType s exp) = reportErrors $ do
   ty' <- runTcMIO (tc Nothing exp >>= tcEval s . snd)
   liftIO $ putStrLn $ show ty'
@@ -107,8 +136,8 @@ runStmt (PrintEval s exp) = reportErrors $ do
   exp' <- runTcMIO $ tcEval s . fst =<< tc Nothing exp
   liftIO $ putStrLn $ show exp'
 runStmt (PrintEnv) = do
-  env <- get
-  forM_ (Map.toList env) $ \(n,t) ->
+  names <- use envNames
+  forM_ (Map.toList names) $ \(n,t) ->
     lift . putStrLn . show $ runIdentity . runNamesT $ pprDecl n t
 runStmt (CheckEqual a b) = reportErrors $ do
   (a',b') <- runTcMIO $ do
@@ -118,11 +147,7 @@ runStmt (CheckEqual a b) = reportErrors $ do
     return (a',b')
   _ <- runTcMIO $ unify a' b'
   return ()
-runStmt (Import file) = parseFile fileName
-  where
-  fileName
-    | any (`elem` "./") file = file
-    | otherwise = file ++ ".ttie"
+runStmt (Import file) = parseModule file
 runStmt (Help) = do
   lift $ putStrLn "x = e          Add a definition"
   lift $ putStrLn "x : e          Add a postulate"
@@ -133,7 +158,7 @@ runStmt (Help) = do
   lift $ putStrLn ":help          Show help message"
   lift $ putStrLn ":clear         Clear the environment"
 runStmt (ClearEnv) = do
-  put Map.empty
+  put emptyEnv
 
 --------------------------------------------------------------------------------
 -- Main function
@@ -145,7 +170,21 @@ parseFile file = do
   contents <- lift $ readFile file
   case runParser parseStmts file contents of
     Left e -> lift $ putStrLn $ "Error: " ++ show e
-    Right stmts -> mapM_ runStmt stmts
+    Right stmts ->
+      withWorkingDir (takeDirectory file) $
+        mapM_ runStmt stmts
+
+parseModule :: String -> StateT Env IO ()
+parseModule moduleName = do
+  dir <- use envWorkingDir
+  let files = [ prefix $ suffix $ moduleName
+              | suffix <- [id, (<.> "ttie")]
+              , prefix <- [id] ++ [(wdir </>) | Just wdir <- [dir]] ]
+      go (file:fs) = do
+        exist <- lift $ doesFileExist file
+        if exist then parseFile file else go fs
+      go [] = lift $ putStrLn $ "Error: Module does not exist: " ++ moduleName
+  go files
 
 repl :: StateT Env IO ()
 repl = do
@@ -174,7 +213,7 @@ main = O.execParser opts >>= mainWithOptions
   where
   opts = O.info (O.helper <*> options)
          (O.fullDesc
-       <> O.header "tt2 - A simple type checker/evaluator for a type theory with indexed equality"
+       <> O.header "ttie - A simple type checker/evaluator for a type theory with indexed equality"
        <> O.progDesc "REPL loading the given file")
   options = Options
     <$> O.argument (Just <$> O.str)
@@ -186,30 +225,7 @@ mainWithOptions :: Options -> IO ()
 mainWithOptions opts = do
   hSetBuffering stdout LineBuffering
   hSetBuffering stdin LineBuffering
-  flip evalStateT Map.empty $ do
-    maybe (return ()) parseFile $ optsFile opts
+  flip evalStateT emptyEnv $ do
+    maybe (return ()) parseModule $ optsFile opts
     repl
 
-
-{-
--- typecheck a file
-main :: IO ()
-main = execParser opts >>= mainWithargs
-  where
-  opts = info (helper <*> sample)
-      ( fullDesc
-     <> progDesc ""
-     <> header "tt2 - A simple type checker/evaluator for a type theory with indexed equality" )
--}
-
-{-
-Example:
-
-foo : Nat -> Nat
-foo = suc
-
-:typeof foo
-:eval   foo
-:check  foo = bar
-
--}
