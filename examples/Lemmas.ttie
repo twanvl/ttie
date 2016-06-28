@@ -1,0 +1,15 @@
+import Prelude
+
+-- Some simple lemmas and checks
+
+left-right : forall {A B x y} -> Eq (Either A B) (left x) (right y) -> Bottom
+left-right = \eq -> fw_i (case eq^i of {left _ -> Unit; right _ -> Bottom}) tt
+
+maybe-zero : forall n -> Either (Eq _ n zero) ({pred-n : _} * Eq _ n (suc pred-n))
+maybe-zero = Nat-elim {\n -> Either (Eq _ n zero) ({pred-n : _} * Eq _ n (suc pred-n))}
+  (left (refl _))
+  (\_ -> value right ({_}, refl _))
+
+ext : ∀ {A : Type} {B : A → Type} {f g : (x : A) → B x} → (∀ x. f x == g x) → f == g
+ext = \fg → refl_i \x → (fg x)^i
+

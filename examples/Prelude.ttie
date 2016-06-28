@@ -1,0 +1,15 @@
+-- A very simple prelude
+
+Nat : Type
+zero : Nat
+suc : Nat -> Nat
+Nat-elim : {P : Nat -> Type} -> P zero -> ({x : Nat} -> P x -> P (suc x)) -> (x : _) -> P x
+
+Either : Type -> Type -> Type
+Either = \(A B : Type) -> data {left : A; right : B}
+left  = \{A B} x -> value left  x : Either A B
+right = \{A B} x -> value right x : Either A B
+
+Bottom = data {}
+Bottom-elim = \{A : Type} x -> case x of {} : A
+
