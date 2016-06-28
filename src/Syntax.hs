@@ -324,10 +324,10 @@ instance (MonadBound Exp m, MonadBoundNames m) => Pretty m Exp where
     Bound "" x' -> align $ text "refl"             $/$ localBound (unnamed Interval) (ppr 11 x')
     Bound n x'  -> align $ text "refl_" <.> text n $/$ localBound (named n Interval) (ppr 11 x')
   ppr _ Interval = text "Interval"
-  ppr _ I0 = text "i0"
-  ppr _ I1 = text "i1"
-  ppr _ I01 = text "i01"
-  ppr _ I10 = text "i10"
+  ppr _ I0 = text "0"
+  ppr _ I1 = text "1"
+  ppr _ I01 = text "01"
+  ppr _ I10 = text "10"
   ppr p (IFlip x) = group $ parenIf (p > 10) $ text "iflip" <+> ppr 11 x
   ppr p (IAnd x y) = group $ parenIf (p > 10) $ text "iand" <+> ppr 11 x <+> ppr 11 y
   --ppr p (IV _x _y z w) = group $ parenIf (p > 11) $ ppr 11 z <.> text "^" <.> ppr 12 w
@@ -401,7 +401,6 @@ parseExpPrim p
   <|> mkBinders SiB  <$ tokExists <*> parseBinders <* (tokArrow <|> tokDot) <*> parseExp 0
   <|> Blank <$ tokUnderscore
   <|> Set . intLevel <$> tokType
-  <|> mkNat <$> tokInt
   <|> Var <$> tokVar
   <|> Proj Visible Proj1 <$ guard (p <= 10) <* tokReservedName "proj1" <*> parseExp 11
   <|> Proj Visible Proj2 <$ guard (p <= 10) <* tokReservedName "proj2" <*> parseExp 11
@@ -413,10 +412,10 @@ parseExpPrim p
   <|> SumElim <$ tokReservedName "case" <*> parseExp 0 <* tokReservedName "of" <* tokLBrace <*> parseSumCase `sepBy` tokSemi <* tokRBrace <*> pure Blank
   <|> SumVal <$ tokReservedName "value" <*> tokName <*> parseExp 11 <*> pure Blank
   <|> Interval <$ tokReservedName "Interval"
-  <|> I0 <$ tokReservedName "i0"
-  <|> I1 <$ tokReservedName "i1"
-  <|> I01 <$ tokReservedName "i01"
-  <|> I10 <$ tokReservedName "i10"
+  <|> I0 <$ tokReservedName "0"
+  <|> I1 <$ tokReservedName "1"
+  <|> I01 <$ tokReservedName "01"
+  <|> I10 <$ tokReservedName "10"
   <|> IFlip <$ guard (p <= 10) <* tokReservedName "iflip" <*> parseExp 11
   <|> IAnd <$ guard (p <= 10) <* tokReservedName "iand" <*> parseExp 11 <*> parseExp 11
   <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11

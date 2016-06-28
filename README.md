@@ -50,24 +50,24 @@ The syntax is modeled after Agda and Haskell:
     {proj1} x             -- projection of an implicit pair/existential
     {x} , y               -- explicit construction of an implicit pair
     
-    i0
-    i1 : Interval         -- The interval has values i0 and i1
-    i01 : Eq _ i0 i1      -- the path between i0 and i1
+    0
+    1 : Interval          -- The interval has values 0 and 1
+    01 : Eq _ 0 1         -- the path between 0 and 1
     refl_i i              -- the same
-    iflip i               -- sends i0 to i1 and vice-versa
-    iand i j              -- i1 if i and j are both i1
+    iflip i               -- sends 0 to 1 and vice-versa
+    iand i j              -- 1 if i and j are both 1
     
     Eq A x y              -- type of equality proofs of x and y of type A
-    Eq_i (A i) x y        -- indexed equality between x : A i0 and y : A i1
+    Eq_i (A i) x y        -- indexed equality between x : A 0 and y : A 1
     x == y                -- sugar for equality type
     refl x                -- reflexivity at x
     refl_i (x i)          -- indexed version
-    xy^i                  -- end point of a path, if xy : Eq _ x y, xy^i0 = x, xy^i1 = y, refl_i xy^i = xy
+    xy^i                  -- end point of a path, if xy : Eq _ x y, xy^0 = x, xy^1 = y, refl_i xy^i = xy
     iv x y xy i           -- desugared version of xy^i
     
     cast_i (A i) u v x    -- substitution: if (x : A u), the result has type (A v)
-    fw_i (A i) x          -- short hand notation for cast_i (A i) i0 i1
-    bw_i (A i) x          -- short hand notation for cast_i (A i) i1 i0
+    fw_i (A i) x          -- short hand notation for cast_i (A i) 0 1
+    bw_i (A i) x          -- short hand notation for cast_i (A i) 1 0
     
     data{left:A; right:B} -- A sum type, constructors have a single argument type
     value left x          -- A value of the above data type, you may need a type signature
@@ -114,7 +114,7 @@ Here is a proof that `fw ∘ bw = id`
     B : Type
     AB : Eq _ A B
     lemma : forall x. fw_i (AB^i) (bw_i AB^i x) == x
-    lemma = \x -> refl_j (cast_i AB^i j i1 (cast_i AB^i i1 j x))
+    lemma = \x -> refl_j (cast_i AB^i j 1 (cast_i AB^i 1 j x))
 
 Proof of function extensionality:
 

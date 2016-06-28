@@ -104,7 +104,7 @@ tokAQName = P.try (P.char '$' *> tokAnyName <* tokNameEnd) <* tokWS
 isReservedName :: String -> Bool
 isReservedName ('p':'r':'o':'j':(x:xs)) = all (`elem`"12") (x:xs)
 isReservedName xs = xs `elem`
-  ["Pi","Sigma","W","Top","Bot","Set","Type","Fin","Eq","refl","Interval","i0","i1","i01","i10"
+  ["Pi","Sigma","W","Top","Bot","Set","Type","Fin","Eq","refl","Interval","0","1","01","10"
   ,"cast","fw","bw","equiv"
   ,"forall","exists","proj1","proj2"
   ,"->",":",",","\\","\\/","=","of"
