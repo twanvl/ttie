@@ -13,3 +13,6 @@ maybe-zero = Nat-elim {\n -> Either (Eq _ n zero) ({pred-n : _} * Eq _ n (suc pr
 ext : ∀ {A : Type} {B : A → Type} {f g : (x : A) → B x} → (∀ x. f x == g x) → f == g
 ext = \fg → refl_i \x → (fg x)^i
 
+transpose-transpose : ∀ {A a b c d ab cd ac bd} x → transpose (transpose {A} {a} {b} {c} {d} {ab} {cd} {ac} {bd} x) == x
+transpose-transpose = \x → refl x
+

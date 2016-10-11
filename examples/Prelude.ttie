@@ -13,3 +13,16 @@ right = \{A B} x -> value right x : Either A B
 Bottom = data {}
 Bottom-elim = \{A : Type} x -> case x of {} : A
 
+-- symmetry and transitivity
+sym : ∀ {A : Type} {x y} → Eq A x y → Eq A y x
+sym = \xy → refl_i xy^(iflip i)
+
+trans : ∀ {A : Type} {x y z : A} → x == y → y == z → x == z
+trans = \{A} {x} {y} {z} xy yz → bw_i (xy^i == z) yz
+
+-- tranpose a square
+transpose : ∀ {A : Type} {a b c d : A} {ab : a == b} {cd : c == d} {ac : a == c} {bd : b == d}
+          → Eq_i (ac^i == bd^i) ab cd
+          → Eq_i (ab^i == cd^i) ac bd
+transpose = \abcd → refl_j (refl_i abcd^i^j)
+
