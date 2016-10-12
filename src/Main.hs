@@ -155,6 +155,7 @@ runStmt (Help) = do
   lift $ putStrLn ":type x        Print the type of x"
   lift $ putStrLn ":eval x        Print the WHNF evaluation of x"
   lift $ putStrLn ":nf x          Print the NF evaluation of x"
+  lift $ putStrLn ":env           Print the current environment"
   lift $ putStrLn ":help          Show help message"
   lift $ putStrLn ":clear         Clear the environment"
 runStmt (ClearEnv) = do

@@ -366,7 +366,7 @@ instance Applicative m => Pretty m LevelMetaVar where
 
 pprDecl :: (MonadBound Exp m, MonadBoundNames m) => Name -> Decl -> m Doc
 pprDecl n (Postulate ty) = text n <+> text ":" <+> ppr 0 ty
-pprDecl n (FunDecl ty val) = text n <+> (text "=" <+> ppr 0 ty $$ text ":" <+> ppr 0 val)
+pprDecl n (FunDecl ty val) = text n <+> align (text ":" <+> align (ppr 0 ty) $$ text "=" <+> align (ppr 0 val))
 
 instance Show Exp where
   showsPrec p = showsDoc . runIdentity . runNamesT . ppr p
