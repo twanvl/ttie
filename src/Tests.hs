@@ -384,7 +384,8 @@ testExp xStr = do
   -- we should be able to infer its type
   (x',ty) <- testPart "Type inference" $
     myTestTcM $ tc Nothing x
-  {--- we should still be able to pretty print and re-parse
+  {--- we should still be able to pretty print and re-parse, after type inference
+  -- but this doesn't hold because we don't pretty print the type information in SumElim.
   testPart "Pretty printer(typechecked)" $ do
     x'' <- showError $ runParser parseExpTop "prety-printed" (show x')
     assertEqual "parse.ppr not identity" x' x''-}
