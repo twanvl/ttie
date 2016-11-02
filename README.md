@@ -100,7 +100,7 @@ Usage
 The implementation comes with a REPL and an interpreter:
 
     $ cabal build
-    $ dist/tie examples/Lemmas
+    $ dist/ttie examples/Lemmas
 
 The unit tests from Tests.hs are also instructive
 
