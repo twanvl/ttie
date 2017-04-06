@@ -85,6 +85,8 @@ pattern AppH x y = App x (Arg Hidden  y)
 pattern PiV x y = Pi (Arg Visible x) y
 pattern PiH x y = Pi (Arg Hidden  x) y
 
+pattern IOr x y = IFlip (IAnd (IFlip x) (IFlip y))
+
 --------------------------------------------------------------------------------
 -- Universe levels
 --------------------------------------------------------------------------------
@@ -417,6 +419,8 @@ parseExpPrim p
   <|> I01 <$ tokReservedName "01"
   <|> I10 <$ tokReservedName "10"
   <|> IFlip <$ guard (p <= 10) <* tokReservedName "iflip" <*> parseExp 11
+  <|> IFlip <$ guard (p <= 10) <* tokReservedName "inot" <*> parseExp 11
+  <|> IFlip <$ guard (p <= 11) <* tokTilde <*> parseExp 11
   <|> IAnd <$ guard (p <= 10) <* tokReservedName "iand" <*> parseExp 11 <*> parseExp 11
   <|> IV <$ guard (p <= 10) <* tokReservedName "iv" <*> parseExp 11 <*> parseExp 11 <*> parseExp 11 <*> parseExp 11
   <|> (\n x -> Refl (capture n x)) <$ guard (p <= 10) <*> tokRefl <*> parseExp 11
@@ -496,6 +500,14 @@ parseOp pcur pmin = (try $ do
   guard $ pcur >= 5 && pmin <= 4
   tokDEquals
   return ((\x y -> pure (Eq (Bound "" Blank) x y)), 5, 4)
+ <|> do
+  guard $ pcur >= 7 && pmin <= 7
+  tokAnd
+  return ((\x y -> pure (IAnd x y)), 7, 8)
+ <|> do
+  guard $ pcur >= 6 && pmin <= 6
+  tokOr
+  return ((\x y -> pure (IOr x y)), 6, 7)
  <|> do
   guard $ pcur >= 10 && pmin <= 10
   return ((\x y -> pure (AppV x y)), 10, 11)
