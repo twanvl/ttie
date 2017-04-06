@@ -61,7 +61,7 @@ parseStmt
   <|> do
         n <- tokName 
         id (TypeSignature n <$ tokColon <*> parseExp 0) <|>
-           (FunBody       n <$ tokEquals <*> parseExp 0)
+           ((\b x -> FunBody n (mkBinders LamB b x)) <$> parseBinders <* tokEquals <*> parseExp 0)
 
 parseStmts :: Parser [Statement]
 parseStmts = withIndentation (many $ parseStmt0) <* tokWS <* eof
