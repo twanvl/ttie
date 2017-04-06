@@ -6,12 +6,12 @@ A demo interpreter and type checker of a type theory with interval indexed equal
 The indexed equality type looks like this (in Agda notation):
 
     data Interval : Type where
-      i0 : Interval
-      i1 : Interval
-      i01 : i0 == i1
+      0 : Interval
+      1 : Interval
+      01 : 0 == 1
     
-    data Eq (A : Interval -> Type) (A i0) (A i1) : Type where
-      refl : (x : (i : Interval) -> A i) -> Eq A (x i0) (x i1)
+    data Eq (A : Interval -> Type) (A 0) (A 1) : Type where
+      refl : (x : (i : Interval) -> A i) -> Eq A (x 0) (x 1)
 
 We write the binders for intervals as a subscript, so `Eq_i (A i) x y`.
 
@@ -30,6 +30,7 @@ The syntax is modeled after Agda and Haskell:
     tt : Unit             -- built in unit type, with constructor tt
     
     Unit -> Unit          -- function type
+    Unit → Unit           -- Unicode
     (A : Type) -> A -> A  -- dependent function type
     {A : Type} -> A -> A  -- implicit arguments
     forall x -> B x       -- the same as (x : _) -> B x
@@ -55,7 +56,10 @@ The syntax is modeled after Agda and Haskell:
     01 : Eq _ 0 1         -- the path between 0 and 1
     refl_i i              -- the same
     iflip i               -- sends 0 to 1 and vice-versa
+    ~i                    -- the same
     iand i j              -- 1 if i and j are both 1
+    i && j                -- the same
+    i || j                -- 1 if i or j is 1
     
     Eq A x y              -- type of equality proofs of x and y of type A
     Eq_i (A i) x y        -- indexed equality between x : A 0 and y : A 1
@@ -77,7 +81,7 @@ The syntax is modeled after Agda and Haskell:
 Declarations and commands look like
 
     name : Type
-    name = expression
+    name arguments = expression
     
     :help
     :quit
@@ -87,7 +91,6 @@ Declarations and commands look like
     :check e = e'
 
 Remarks:
- * There is no support for function definitions with arguments, use lambdas instead.
  * Built in names like `Eq`, `proj1`, `cast`, etc. must always be fully applied.
  * Spaces around operators like `->` are usually required, because `-` can be part of a name.
  * There is no support for recursion yet.
