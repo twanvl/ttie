@@ -13,6 +13,23 @@ right = \{A B} x -> value right x : Either A B
 Bottom = data {}
 Bottom-elim = \{A : Type} x -> case x of {} : A
 
+-- Empty type
+Empty : Type
+Empty = data{}
+
+not : Type → Type
+not A = A → Empty
+
+-- Booleans
+Bool : Type
+Bool = data {false : Unit; true : Unit}
+
+false : Bool
+false = value false tt
+
+true : Bool
+true = value true tt
+
 -- symmetry and transitivity
 sym : ∀ {A : Type} {x y} → Eq A x y → Eq A y x
 sym = \xy → refl_i xy^(iflip i)

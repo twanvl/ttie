@@ -16,3 +16,5 @@ ext = \fg → refl_i \x → (fg x)^i
 transpose-transpose : ∀ {A a b c d ab cd ac bd} x → transpose (transpose {A} {a} {b} {c} {d} {ab} {cd} {ac} {bd} x) == x
 transpose-transpose = \x → refl x
 
+false≠true : false == true → data{}
+false≠true eq = cast_i (case eq^i of {false _ → data{}; true _ → Unit}) 1 0 tt
